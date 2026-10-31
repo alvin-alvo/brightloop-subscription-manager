@@ -1,4 +1,5 @@
 import type { User, UserRole } from '../types';
+import { BASE_URL } from './api';
 
 export interface LoginCredentials {
   email: string;
@@ -66,6 +67,41 @@ export const DEFAULT_DEMO_USERS: Record<string, { user: User; passwordHash: stri
   },
 };
 
+/**
+ * An HTTP error returned by the backend. Carries the server's `message` so the
+ * login/signup forms can display it directly.
+ */
+export class AuthHttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'AuthHttpError';
+    this.status = status;
+  }
+}
+
+/**
+ * Calls the live auth backend. HTTP error responses throw AuthHttpError with the
+ * server message; network failures (backend not running) reject with TypeError so
+ * callers can decide whether to fall back to the local mock.
+ */
+async function callBackend<T>(endpoint: string, body: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const message =
+      (data as { message?: string })?.message || `Request failed with status ${response.status}`;
+    throw new AuthHttpError(message, response.status);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 const STORAGE_USERS_KEY = 'brightloop_dynamic_users';
 
 function getDynamicUsers(): Record<string, { user: User; passwordHash: string }> {
@@ -90,28 +126,26 @@ function saveDynamicUser(email: string, user: User, passwordHash: string) {
   }
 }
 
-/**
- * Simulates network latency (~1s delay) while fulfilling the <2s response requirement.
- */
+/** Simulates network latency (~1s) while fulfilling the <2s response requirement. */
 const delay = (ms: number = 1000) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Mock login service simulating API call
- */
-export async function mockLogin(credentials: LoginCredentials): Promise<AuthSessionResponse> {
+/** Local mock login, identical shape to the backend response. */
+async function loginLocal(credentials: LoginCredentials): Promise<AuthSessionResponse> {
   await delay(1000);
 
   const normalizedEmail = credentials.email.trim().toLowerCase();
   const allUsers = getDynamicUsers();
   const entry = allUsers[normalizedEmail];
 
-  // If email is not in system
   if (!entry) {
     throw new Error('Invalid email or password. Please verify your credentials.');
   }
 
-  // Check password - for demo accounts or registered accounts
-  if (entry.passwordHash && credentials.password !== entry.passwordHash && credentials.password !== 'Brightloop2026!') {
+  if (
+    entry.passwordHash &&
+    credentials.password !== entry.passwordHash &&
+    credentials.password !== 'Brightloop2026!'
+  ) {
     throw new Error('Invalid email or password. Please verify your credentials.');
   }
 
@@ -124,9 +158,22 @@ export async function mockLogin(credentials: LoginCredentials): Promise<AuthSess
 }
 
 /**
- * Mock registration service simulating API call
+ * Login. Prefers the live backend; falls back to the local mock when the API is
+ * unreachable so the demo still works without the backend running.
  */
-export async function mockRegister(data: RegisterData): Promise<AuthSessionResponse> {
+export async function mockLogin(credentials: LoginCredentials): Promise<AuthSessionResponse> {
+  try {
+    return await callBackend<AuthSessionResponse>('/v1/auth/login', credentials);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return loginLocal(credentials);
+    }
+    throw error;
+  }
+}
+
+/** Local mock registration, identical shape to the backend response. */
+async function registerLocal(data: RegisterData): Promise<AuthSessionResponse> {
   await delay(1000);
 
   const normalizedEmail = data.email.trim().toLowerCase();
@@ -161,19 +208,50 @@ export async function mockRegister(data: RegisterData): Promise<AuthSessionRespo
 }
 
 /**
- * Mock forgot password service simulating API call
+ * Register. Prefers the live backend; falls back to the local mock when the API
+ * is unreachable.
  */
-export async function mockForgotPassword(email: string): Promise<ForgotPasswordResponse> {
+export async function mockRegister(data: RegisterData): Promise<AuthSessionResponse> {
+  try {
+    return await callBackend<AuthSessionResponse>('/v1/auth/register', {
+      email: data.email,
+      password: data.password,
+      name: data.name,
+      companyName: data.companyName,
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return registerLocal(data);
+    }
+    throw error;
+  }
+}
+
+/** Local mock forgot-password, identical shape to the backend response. */
+async function forgotPasswordLocal(email: string): Promise<ForgotPasswordResponse> {
   await delay(1000);
 
   if (!email || !email.includes('@')) {
     throw new Error('Please enter a valid email address.');
   }
 
-  // For security best practices, always return generic success message to prevent user enumeration
   return {
     success: true,
     message: 'If an account exists, a reset link has been sent to your email.',
   };
 }
 
+/**
+ * Forgot password. Prefers the live backend; falls back to the local mock when
+ * the API is unreachable.
+ */
+export async function mockForgotPassword(email: string): Promise<ForgotPasswordResponse> {
+  try {
+    return await callBackend<ForgotPasswordResponse>('/v1/auth/password-reset', { email });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      return forgotPasswordLocal(email);
+    }
+    throw error;
+  }
+}

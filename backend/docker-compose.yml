@@ -45,6 +45,12 @@ services:
       PORT: "8081"
       GIN_MODE: release
       DATABASE_URL: "${DATABASE_URL:-postgres://brightloop:brightloop@postgres:5432/brightloop?sslmode=disable}"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      JWT_ISSUER: "${JWT_ISSUER:-brightloop-auth}"
+      ACCESS_TOKEN_TTL: "${ACCESS_TOKEN_TTL:-168h}"
+      REFRESH_TOKEN_TTL: "${REFRESH_TOKEN_TTL:-720h}"
+      PASSWORD_RESET_TTL: "${PASSWORD_RESET_TTL:-30m}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-*}"
     depends_on:
       postgres:
         condition: service_healthy

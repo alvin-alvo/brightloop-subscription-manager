@@ -4,10 +4,13 @@ Microservice backend for the Brightloop subscription management platform. Each
 service is an independent Go module with a Gin server. HAProxy is the single
 public entry point.
 
-> The **subscription** service is fully implemented: subscription lifecycle,
-> billing schedules, recurring invoices, renewals, transactions, dashboard
-> analytics and revenue reports. Auth, user and notification are still
-> scaffolds whose business endpoints return `501 Not Implemented`.
+> The **subscription** and **auth** services are fully implemented.
+> Subscription covers the lifecycle, recurring billing, invoices, renewals,
+> transactions, dashboard analytics and revenue reports. Auth covers register,
+> login, logout, token validation and password reset with bcrypt hashing and
+> signed JWTs. The frontend login/signup pages call the auth service (with a
+> local fallback when the backend is not running). User and notification are
+> still scaffolds whose business endpoints return `501 Not Implemented`.
 
 ## Architecture
 
@@ -80,6 +83,90 @@ backend/
 `monolith/` is kept only as a reference for the domain model and auth code. It
 is **not** part of the compose stack and can be deleted once it is no longer
 useful.
+
+## Auth service
+
+The auth service implements accounts, session authentication and password
+flows with a strict inward dependency chain identical to the subscription
+service: `api → service → repository → domain`, with JWT/bcrypt helpers in
+`internal/auth`.
+
+```
+services/auth/
+├── main.go                  # wiring: config, database, token manager, router
+└── internal/
+    ├── api/                 # Gin router, handlers, DTOs, CORS, response helpers
+    ├── auth/                # JWT issuing/verification, bcrypt hashing, token helpers
+    ├── config/              # environment configuration
+    ├── database/            # pgx-backed database/sql pool
+    ├── domain/              # user/session/reset entities, enums, sentinel errors
+    ├── repository/          # interfaces + postgres/ implementations
+    └── service/             # register, login, validate, logout, reset business rules
+```
+
+### Configuration
+
+| Variable           | Default       | Purpose                                              |
+| ------------------ | ------------- | ---------------------------------------------------- |
+| `PORT`             | `8081`        | Internal HTTP port                                   |
+| `DATABASE_URL`     | `postgres://brightloop:brightloop@localhost:5432/brightloop?sslmode=disable` | PostgreSQL connection string |
+| `JWT_SECRET`       | empty         | Signing secret; falls back to a stable dev secret    |
+| `JWT_ISSUER`       | `brightloop-auth` | Issuer claim on issued tokens                    |
+| `ACCESS_TOKEN_TTL` | `168h`        | Access-token lifetime                                |
+| `REFRESH_TOKEN_TTL`| `720h`        | Session/refresh lifetime                             |
+| `PASSWORD_RESET_TTL` | `30m`       | Password-reset code lifetime                         |
+| `CORS_ALLOWED_ORIGINS` | `*`       | Comma-separated allowed browser origins              |
+
+The auth and subscription services share `JWT_SECRET`; when enabled, the
+subscription middleware verifies tokens that auth issued, so RBAC claims carry
+across services.
+
+### Endpoints
+
+| Method | Path                         | Responsibility                                      |
+| ------ | ---------------------------- | --------------------------------------------------- |
+| `POST` | `/api/v1/auth/register`      | Create a customer account, return `{ user, token }` |
+| `POST` | `/api/v1/auth/login`         | Verify credentials, return `{ user, token }`        |
+| `POST` | `/api/v1/auth/logout`        | Revoke the active session (`Authorization` bearer)  |
+| `GET`  | `/api/v1/auth/validate`      | Verify a bearer token, return the active user       |
+| `POST` | `/api/v1/auth/password-reset`| Issue a reset code; always returns generic success  |
+
+Register and login return the `AuthSessionResponse` shape consumed by the
+frontend:
+
+```json
+{
+  "user": {
+    "id": "usr_admin_01",
+    "name": "Alex Vance",
+    "email": "alex.admin@brightloop.io",
+    "role": "admin",
+    "status": "active",
+    "companyName": "Brightloop HQ",
+    "createdAt": "2024-01-15T08:00:00Z",
+    "updatedAt": "2024-10-31T09:00:00Z"
+  },
+  "token": "<signed JWT>"
+}
+```
+
+Behavior notes:
+
+- **Passwords** are hashed with bcrypt; the same policy as the frontend is
+  enforced server-side (>8 chars, uppercase, lowercase, special character).
+- **Self-registration** is limited to `customer`; admin/staff roles are created
+  by staff management, not public registration.
+- **Login** returns a generic "Invalid email or password" message to avoid user
+  enumeration; unknown emails and wrong passwords are indistinguishable.
+- **Reset** always returns the same success message whether or not an account
+  exists (anti-enumeration).
+- **Logout/validate** check the session row, so a revoked token stops
+  validating even before it expires.
+- JWTs carry `sub`, `user_id`, `name`, `email`, `role` and `sid` (session id)
+  claims, which the subscription service middleware already understands.
+
+Seeded demo accounts (password `Brightloop2026!`) match the Quick Demo Logins
+on the login page: admin, staff and customer.
 
 ## Subscription service
 
@@ -252,8 +339,19 @@ curl -X POST http://localhost:3000/api/subscriptions \
   -H "Content-Type: application/json" \
   -d '{"customerId":"<uuid>","planId":"<uuid>"}'
 
-# Public auth stub
-curl -X POST http://localhost:8080/api/v1/auth/login
+# Sign in with a seeded demo account
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alex.admin@brightloop.io","password":"Brightloop2026!"}'
+
+# Register a new customer account
+curl -X POST http://localhost:3000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Jane Doe","email":"jane@company.com","password":"StrongPass1!"}'
+
+# Validate a token returned by login/register
+curl http://localhost:8080/api/v1/auth/validate \
+  -H "Authorization: Bearer <token>"
 
 # Protected stub (draft filter only checks for the header)
 curl -H "Authorization: Bearer test" http://localhost:8080/api/v1/users/me
@@ -361,20 +459,16 @@ go build ./...
 
 ## Endpoints
 
-The subscription service is implemented; see
-[Subscription service](#subscription-service) for its full route table and
-payloads. Auth, user and notification remain drafts and return
-`501 Not Implemented`.
+The subscription and auth services are implemented; see
+[Subscription service](#subscription-service) and [Auth service](#auth-service)
+for their full route tables and payloads. User and notification remain drafts
+and return `501 Not Implemented`.
 
 ### Auth (`/api/v1/auth`)
 
-| Method | Path             | Responsibility              |
-| ------ | ---------------- | --------------------------- |
-| POST   | `/register`      | Create an account           |
-| POST   | `/login`         | Authenticate and issue JWT  |
-| POST   | `/logout`        | Revoke the session          |
-| POST   | `/password-reset`| Send a reset link           |
-| GET    | `/validate`      | Validate a token            |
+Implemented. Routes are `POST /register`, `POST /login`, `POST /logout`,
+`GET /validate` and `POST /password-reset`; see
+[Auth service](#auth-service) for the authoritative table.
 
 ### User (`/api/v1/users`)
 
@@ -405,12 +499,10 @@ authoritative reference; `/api/subscriptions/...` serves the same routes.
 
 ## Next steps
 
-1. Implement auth: bcrypt hashes, JWT issuing/validation, refresh/revocation,
-   password reset tokens and RBAC claims.
-2. Implement the user and notification services.
-3. Replace the draft gateway bearer-presence filter with real JWT validation
-   (forward-auth/SPOE or an auth-service call).
-4. Add service-to-service calls (subscription → notification, user → auth).
-5. Add per-service migrations on top of the shared `db/schema.sql` and
-   PostgreSQL-backed integration tests for the subscription repositories.
-6. Publish OpenAPI specs per service.
+1. Implement the user and notification services.
+2. Replace the draft gateway bearer-presence filter with real JWT validation
+   (forward-auth/SPOE or a call to the auth `/validate` endpoint).
+3. Add service-to-service calls (subscription → notification, user → auth).
+4. Add per-service migrations on top of the shared `db/schema.sql` and
+   PostgreSQL-backed integration tests for the subscription and auth repositories.
+5. Publish OpenAPI specs per service.

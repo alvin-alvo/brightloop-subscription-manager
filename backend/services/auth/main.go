@@ -1,59 +1,62 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/api"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/api/handler"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/auth"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/config"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/database"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/repository/postgres"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/auth/internal/service"
 )
 
-// Auth service draft.
-//
-// Responsibilities (to implement):
-//   - Register / login / logout
-//   - JWT generation and validation
-//   - Password reset
-//   - Role-based access control
 func main() {
-	port := env("PORT", "8081")
+	cfg := config.Load()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	router := gin.Default()
-	router.GET("/health", health("auth"))
-
-	api := router.Group("/api/v1/auth")
-	{
-		api.POST("/register", stub("register"))
-		api.POST("/login", stub("login"))
-		api.POST("/logout", stub("logout"))
-		api.POST("/password-reset", stub("password reset"))
-		api.GET("/validate", stub("JWT validation"))
-	}
-
-	log.Printf("auth service listening on :%s", port)
-	if err := router.Run(":" + port); err != nil {
+	db, err := database.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
 		log.Fatalf("auth service: %v", err)
 	}
-}
+	defer db.Close()
 
-func env(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	store := postgres.New(db)
+	tokens := auth.NewTokenManager(cfg.EffectiveSecret(), cfg.JWTIssuer, cfg.AccessTokenTTL)
+	authService := service.NewAuthService(store, store, tokens, cfg.PasswordResetTTL)
+
+	handlers := handler.New(authService)
+	router := api.NewRouter(cfg, handlers)
+
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
-	return fallback
-}
 
-func health(service string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": service})
-	}
-}
+	go func() {
+		log.Printf("auth service listening on :%s", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("auth service: %v", err)
+		}
+	}()
 
-func stub(feature string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"error":   "not implemented",
-			"feature": feature,
-		})
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("auth service shutdown: %v", err)
 	}
 }

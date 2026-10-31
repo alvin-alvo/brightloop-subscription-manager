@@ -1,5 +1,5 @@
 // Base API configuration and helper for Brightloop
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export async function apiClient<T>(
   endpoint: string,

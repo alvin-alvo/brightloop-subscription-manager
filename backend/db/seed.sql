@@ -9,6 +9,26 @@
 
 BEGIN;
 
+-- Demo accounts that the Quick Demo Logins on the frontend sign in with.
+-- Password for every seeded account is the bcrypt hash of: Brightloop2026!
+INSERT INTO users (
+    id, name, email, password_hash, role, status, company_name
+)
+VALUES
+    ('00000000-0000-0000-0000-000000000101', 'Alex Vance',
+     'alex.admin@brightloop.io',
+     '$2a$10$L98LpKx8NFCT8kvS1n2n5uoaqHjNtYa409eu6tsCYwZ4BV9il.heC',
+     'admin', 'active', 'Brightloop HQ'),
+    ('00000000-0000-0000-0000-000000000102', 'Sarah Miller',
+     'sarah.miller@brightloop.io',
+     '$2a$10$L98LpKx8NFCT8kvS1n2n5uoaqHjNtYa409eu6tsCYwZ4BV9il.heC',
+     'staff', 'active', 'Brightloop Operations'),
+    ('00000000-0000-0000-0000-000000000103', 'David Chen',
+     'david@acme-enterprises.com',
+     '$2a$10$L98LpKx8NFCT8kvS1n2n5uoaqHjNtYa409eu6tsCYwZ4BV9il.heC',
+     'customer', 'active', 'Acme Enterprises Inc.')
+ON CONFLICT (id) DO NOTHING;
+
 -- Reference data: one product, three tiers, two customers.
 INSERT INTO products (id, name, description, active, features)
 VALUES (
@@ -35,7 +55,7 @@ ON CONFLICT (product_id, name) DO NOTHING;
 
 INSERT INTO customers (id, user_id, name, email, company_name, currency, status)
 VALUES
-    ('00000000-0000-0000-0000-000000000021', NULL,
+    ('00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000103',
      'Acme Enterprises Inc.', 'billing@acme-enterprises.com',
      'Acme Enterprises Inc.', 'USD', 'active'),
     ('00000000-0000-0000-0000-000000000022', NULL,
