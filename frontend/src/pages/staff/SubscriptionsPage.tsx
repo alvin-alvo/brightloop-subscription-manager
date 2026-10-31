@@ -1,109 +1,52 @@
-import React from 'react';
-import { Plus } from 'lucide-react';
-import { StatusBadge } from '../../components/StatusBadge';
+import React, { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, CalendarDays, Plus } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { fetchStaffWorkspace, type PipelineStage, type StaffSubscription } from '../../utils/mockStaffData';
+
+const stages: PipelineStage[] = ['Draft', 'Quotation', 'Confirmed', 'Active', 'Closed'];
+const currency = (cents: number): string =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
 export const SubscriptionsPage: React.FC = () => {
   const { addToast } = useToast();
+  const { data, isLoading } = useQuery({ queryKey: ['staff-workspace'], queryFn: fetchStaffWorkspace });
+  const [subscriptions, setSubscriptions] = useState<StaffSubscription[]>([]);
 
-  const subscriptions = [
-    {
-      id: 'sub_9921',
-      customer: 'Acme Enterprises Inc.',
-      plan: 'Enterprise Annual',
-      billingCycle: 'Yearly',
-      nextBilling: 'Jan 15, 2025',
-      mrr: '$1,200.00',
-      status: 'active' as const,
-    },
-    {
-      id: 'sub_9920',
-      customer: 'Vertex Technologies',
-      plan: 'Growth Tier',
-      billingCycle: 'Monthly',
-      nextBilling: 'Nov 14, 2024',
-      mrr: '$499.00',
-      status: 'active' as const,
-    },
-    {
-      id: 'sub_9919',
-      customer: 'Quantum AI Systems',
-      plan: 'Scale Tier',
-      billingCycle: 'Monthly',
-      nextBilling: 'Nov 18, 2024',
-      mrr: '$890.00',
-      status: 'active' as const,
-    },
-    {
-      id: 'sub_9918',
-      customer: 'Helix Health Labs',
-      plan: 'Pro Tier',
-      billingCycle: 'Monthly',
-      nextBilling: 'Oct 28, 2024',
-      mrr: '$299.00',
-      status: 'past_due' as const,
-    },
-  ];
+  useEffect(() => {
+    if (data) setSubscriptions(data.subscriptions);
+  }, [data]);
+
+  const moveTo = (id: string, stage: PipelineStage) => {
+    setSubscriptions((current) => current.map((item) => item.id === id ? { ...item, stage, updatedAt: new Date().toISOString().slice(0, 10) } : item));
+    const subscription = subscriptions.find((item) => item.id === id);
+    if (subscription) addToast('Pipeline updated', `${subscription.customer} moved to ${stage}.`, 'success');
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-light text-stripe-ink tracking-tight">
-            Subscriptions Lifecycle Manager
-          </h1>
-          <p className="text-sm text-stripe-ink-mute mt-1">
-            Active recurring contracts, renewal timelines, upgrades, and cancellations.
-          </p>
-        </div>
-        <button
-          onClick={() =>
-            addToast('Subscription Form', 'Assign new subscription tier.', 'info')
-          }
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-stripe-primary hover:bg-stripe-primary-deep rounded-full shadow-stripe-sm transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Assign Subscription
-        </button>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div><p className="text-xs font-medium uppercase text-stripe-ink-mute">Revenue operations</p><h1 className="mt-1 text-2xl font-light text-stripe-ink">Subscription pipeline</h1><p className="mt-1 text-sm text-stripe-ink-mute">A shared view of every customer agreement and its current stage.</p></div>
+        <button type="button" onClick={() => addToast('Subscription draft started', 'New subscription added to the Draft stage.', 'info')} className="inline-flex items-center justify-center gap-2 rounded-full bg-stripe-primary px-4 py-2.5 text-sm font-medium text-white shadow-stripe-sm hover:bg-stripe-primary-deep"><Plus className="h-4 w-4" /> New subscription</button>
       </div>
 
-      <div className="bg-white border border-stripe-hairline rounded-xl shadow-stripe-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-stripe-hairline bg-stripe-canvas-soft text-[11px] font-medium text-stripe-ink-mute uppercase tracking-wider">
-                <th className="py-3 px-5">Sub ID</th>
-                <th className="py-3 px-5">Subscriber</th>
-                <th className="py-3 px-5">Plan</th>
-                <th className="py-3 px-5">Cycle</th>
-                <th className="py-3 px-5">Monthly Value</th>
-                <th className="py-3 px-5">Next Renewal</th>
-                <th className="py-3 px-5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stripe-hairline text-sm">
-              {subscriptions.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-5 font-mono text-xs font-semibold text-stripe-ink-secondary">
-                    {s.id}
-                  </td>
-                  <td className="py-3 px-5 font-medium text-stripe-ink">{s.customer}</td>
-                  <td className="py-3 px-5 text-xs text-stripe-ink-secondary">{s.plan}</td>
-                  <td className="py-3 px-5 text-xs text-stripe-ink-mute">{s.billingCycle}</td>
-                  <td className="py-3 px-5 font-normal text-stripe-ink tnum">{s.mrr}</td>
-                  <td className="py-3 px-5 text-xs text-stripe-ink-mute tnum">{s.nextBilling}</td>
-                  <td className="py-3 px-5">
-                    <StatusBadge
-                      label={s.status === 'active' ? 'Active' : 'Past Due'}
-                      variant={s.status === 'active' ? 'success' : 'danger'}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {isLoading ? <div className="rounded-lg border border-stripe-hairline bg-white p-12 text-center text-sm text-stripe-ink-mute">Loading subscription pipeline...</div> : <div className="flex gap-4 overflow-x-auto pb-3">
+        {stages.map((stage, index) => {
+          const stageItems = subscriptions.filter((item) => item.stage === stage);
+          return <section key={stage} aria-label={`${stage} subscriptions`} className="w-[min(82vw,300px)] shrink-0 rounded-lg border border-stripe-hairline bg-slate-50/80 p-3 sm:w-[280px]">
+            <div className="mb-3 flex items-center justify-between px-1"><div className="flex items-center gap-2"><h2 className="text-sm font-semibold text-stripe-ink">{stage}</h2><span className="rounded-full bg-white px-2 py-0.5 text-xs tabular-nums text-stripe-ink-mute">{stageItems.length}</span></div><span className="text-[10px] uppercase text-stripe-ink-mute">{String(index + 1).padStart(2, '0')}</span></div>
+            <div className="min-h-28 space-y-3">
+              {stageItems.map((subscription) => <article key={subscription.id} className="rounded-md border border-stripe-hairline bg-white p-4 shadow-stripe-sm">
+                <div className="flex items-start justify-between gap-3"><div><p className="font-medium text-stripe-ink">{subscription.customer}</p><p className="mt-1 font-mono text-[11px] text-stripe-ink-mute">{subscription.id}</p></div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-medium text-stripe-primary">{subscription.plan.split(' ')[0]}</span></div>
+                <div className="mt-4 flex items-center justify-between border-t border-stripe-hairline pt-3"><span className="text-xs text-stripe-ink-mute">Monthly value</span><span className="text-sm font-medium tabular-nums text-stripe-ink">{currency(subscription.monthlyValueCents)}</span></div>
+                <p className="mt-2 flex items-center gap-1.5 text-[11px] text-stripe-ink-mute"><CalendarDays className="h-3.5 w-3.5" /> Updated {new Date(`${subscription.updatedAt}T00:00:00`).toLocaleDateString()}</p>
+                <label className="mt-3 flex items-center gap-2 border-t border-stripe-hairline pt-3 text-xs text-stripe-ink-secondary">Move to <select aria-label={`Move ${subscription.customer} to stage`} value={subscription.stage} onChange={(event) => moveTo(subscription.id, event.target.value as PipelineStage)} className="min-w-0 flex-1 rounded border border-stripe-hairline-input bg-white px-2 py-1.5 text-xs text-stripe-ink focus:border-stripe-primary focus:outline-none">{stages.map((nextStage) => <option key={nextStage} value={nextStage}>{nextStage}</option>)}</select><ArrowRight className="h-3.5 w-3.5 text-stripe-ink-mute" /></label>
+              </article>)}
+              {stageItems.length === 0 && <p className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-stripe-ink-mute">No subscriptions in this stage</p>}
+            </div>
+          </section>;
+        })}
+      </div>}
     </div>
   );
 };

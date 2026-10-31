@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -11,6 +11,8 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { APP_ROUTES, getDefaultRouteForRole } from './routes/routes.config';
 import { useAuth } from './hooks/useAuth';
+
+const QuoteBuilderPage = lazy(() => import('./pages/staff/QuoteBuilderPage'));
 
 const RootRedirect: React.FC = () => {
   const { role, isAuthenticated } = useAuth();
@@ -41,6 +43,14 @@ export const App: React.FC = () => {
 
             {/* Main Application Layout with Protected Routes */}
             <Route element={<DashboardLayout />}>
+              <Route
+                path="/staff/quotations/new"
+                element={
+                  <ProtectedRoute allowedRoles={['staff', 'admin']}>
+                    <QuoteBuilderPage />
+                  </ProtectedRoute>
+                }
+              />
               {APP_ROUTES.map((route) => {
                 const Element = route.element;
                 return (
