@@ -10,6 +10,7 @@ import {
   Receipt,
   CreditCard,
   FileText,
+  LayoutDashboard,
   type LucideIcon,
 } from 'lucide-react';
 import type { UserRole } from '../types';
@@ -25,6 +26,7 @@ const QuotationsPage = lazy(() => import('../pages/staff/QuotationsPage'));
 const SubscriptionsPage = lazy(() => import('../pages/staff/SubscriptionsPage'));
 const BillingOperationsPage = lazy(() => import('../pages/staff/BillingOperationsPage'));
 
+const CustomerDashboardPage = lazy(() => import('../pages/customer/CustomerDashboardPage'));
 const CustomerSubscriptionsPage = lazy(() => import('../pages/customer/CustomerSubscriptionsPage'));
 const CustomerInvoicesPage = lazy(() => import('../pages/customer/CustomerInvoicesPage'));
 
@@ -118,8 +120,17 @@ export const APP_ROUTES: AppRouteConfig[] = [
 
   // --- CUSTOMER PORTAL ROUTES ---
   {
+    id: 'customer_dashboard',
+    path: '/customer/dashboard',
+    label: 'Portal Overview',
+    icon: LayoutDashboard,
+    allowedRoles: ['customer'],
+    section: 'Customer Portal',
+    element: CustomerDashboardPage,
+  },
+  {
     id: 'customer_subscriptions',
-    path: '/portal/subscriptions',
+    path: '/customer/subscriptions',
     label: 'My Subscriptions',
     icon: CreditCard,
     allowedRoles: ['customer'],
@@ -128,8 +139,8 @@ export const APP_ROUTES: AppRouteConfig[] = [
   },
   {
     id: 'customer_invoices',
-    path: '/portal/invoices',
-    label: 'Invoices',
+    path: '/customer/invoices',
+    label: 'Invoices & Receipts',
     icon: FileText,
     allowedRoles: ['customer'],
     section: 'Customer Portal',
@@ -145,9 +156,8 @@ export function getDefaultRouteForRole(role: UserRole): string {
     case 'staff':
       return '/staff/customers';
     case 'customer':
-      return '/portal/subscriptions';
+      return '/customer/dashboard';
     default:
-      return '/portal/subscriptions';
+      return '/customer/dashboard';
   }
 }
-
