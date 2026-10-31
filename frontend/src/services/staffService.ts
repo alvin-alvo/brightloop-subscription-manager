@@ -1,8 +1,15 @@
-import { ApiError, apiClient } from './api';
-import { mockAdminService } from './mockAdminData';
-import type { AdminStaff } from './mockAdminData';
+import { apiClient } from './api';
 
-export type { AdminStaff } from './mockAdminData';
+export interface AdminStaff {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'staff';
+  department: string;
+  status: 'active' | 'invited' | 'suspended';
+  lastActive: string;
+  createdAt: string;
+}
 
 export interface InviteStaffInput {
   name: string;
@@ -11,50 +18,23 @@ export interface InviteStaffInput {
   department: string;
 }
 
-/** Whether an error means the backend is unavailable or the caller lacks a
- * usable identity — in which case we fall back to the local mock. */
-function isFallbackError(error: unknown): boolean {
-  if (error instanceof TypeError) return true;
-  if (error instanceof ApiError && (error.status === 401 || error.status === 403)) return true;
-  return false;
-}
-
+/** Staff administration against the real user service. */
 export const staffService = {
   async getStaffMembers(): Promise<AdminStaff[]> {
-    try {
-      return await apiClient<AdminStaff[]>('/v1/users');
-    } catch (error) {
-      if (isFallbackError(error)) return mockAdminService.getStaffMembers();
-      throw error;
-    }
+    return apiClient<AdminStaff[]>('/v1/users');
   },
 
   async addStaffMember(input: InviteStaffInput): Promise<AdminStaff> {
-    try {
-      return await apiClient<AdminStaff>('/v1/users', {
-        method: 'POST',
-        body: JSON.stringify(input),
-      });
-    } catch (error) {
-      if (isFallbackError(error)) {
-        return mockAdminService.addStaffMember({
-          ...input,
-          status: 'invited',
-        });
-      }
-      throw error;
-    }
+    return apiClient<AdminStaff>('/v1/users', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   },
 
   async updateStaffRole(id: string, role: 'admin' | 'staff'): Promise<AdminStaff> {
-    try {
-      return await apiClient<AdminStaff>(`/v1/users/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ role }),
-      });
-    } catch (error) {
-      if (isFallbackError(error)) return mockAdminService.updateStaffRole(id, role);
-      throw error;
-    }
+    return apiClient<AdminStaff>(`/v1/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    });
   },
 };

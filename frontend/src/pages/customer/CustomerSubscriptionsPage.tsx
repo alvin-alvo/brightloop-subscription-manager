@@ -13,9 +13,9 @@ import { useToast } from '../../context/ToastContext';
 import { DashboardSkeleton } from '../../components/layout/DashboardSkeleton';
 import { StatusBadge } from '../../components/StatusBadge';
 import {
-  fetchCustomerSubscriptions,
+  subscriptionsService,
   formatDisplayDate,
-} from '../../services/mockCustomerData';
+} from '../../services/subscriptionsService';
 
 interface CustomerSubscriptionsPageProps {
   customerId?: string;
@@ -31,7 +31,7 @@ export const CustomerSubscriptionsPage: React.FC<CustomerSubscriptionsPageProps>
 
   const { data: subscriptions, isLoading } = useQuery({
     queryKey: ['customerSubscriptions', effectiveCustomerId],
-    queryFn: () => fetchCustomerSubscriptions(effectiveCustomerId),
+    queryFn: () => subscriptionsService.getSubscriptions(),
     staleTime: 1000 * 60 * 2,
   });
 

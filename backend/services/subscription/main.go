@@ -33,8 +33,10 @@ func main() {
 	subscriptions := service.NewSubscriptionService(store, store, store)
 	dashboard := service.NewDashboardService(store, store, store)
 	billing := service.NewBillingService(store, store)
+	catalog := service.NewCatalogService(store, store)
+	quotes := service.NewQuoteService(store, store, store)
 
-	handlers := handler.New(subscriptions, dashboard, billing, cfg.ReportingCurrency)
+	handlers := handler.New(subscriptions, dashboard, billing, catalog, quotes, cfg.ReportingCurrency)
 	router := api.NewRouter(cfg, handlers)
 
 	server := &http.Server{

@@ -14,9 +14,9 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { DashboardSkeleton } from '../../components/layout/DashboardSkeleton';
 import {
-  fetchCustomerOverview,
+  subscriptionsService,
   formatDisplayDate,
-} from '../../services/mockCustomerData';
+} from '../../services/subscriptionsService';
 
 interface CustomerDashboardPageProps {
   customerId?: string;
@@ -31,7 +31,7 @@ export const CustomerDashboardPage: React.FC<CustomerDashboardPageProps> = ({
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['customerOverview', effectiveCustomerId],
-    queryFn: () => fetchCustomerOverview(effectiveCustomerId),
+    queryFn: () => subscriptionsService.getCustomerOverview(),
     staleTime: 1000 * 60 * 2,
   });
 

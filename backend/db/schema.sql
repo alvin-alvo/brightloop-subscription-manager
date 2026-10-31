@@ -239,6 +239,29 @@ CREATE TABLE quotation_items (
 
 CREATE INDEX quotation_items_quotation_id_idx ON quotation_items (quotation_id);
 
+CREATE TABLE quote_templates (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name          TEXT NOT NULL,
+    plan_id       UUID REFERENCES plans (id) ON DELETE SET NULL,
+    validity_days INTEGER NOT NULL DEFAULT 30 CHECK (validity_days > 0),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE quote_template_items (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_id           UUID NOT NULL REFERENCES quote_templates (id) ON DELETE CASCADE,
+    product_id            UUID REFERENCES products (id) ON DELETE SET NULL,
+    product_name          TEXT NOT NULL DEFAULT '',
+    quantity              INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    unit_price_cents      BIGINT NOT NULL DEFAULT 0 CHECK (unit_price_cents >= 0),
+    tax_rate_basis_points INTEGER NOT NULL DEFAULT 0
+                              CHECK (tax_rate_basis_points BETWEEN 0 AND 10000),
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX quote_template_items_template_id_idx ON quote_template_items (template_id);
+
 -- ---------------------------------------------------------------------------
 -- Subscriptions
 -- ---------------------------------------------------------------------------

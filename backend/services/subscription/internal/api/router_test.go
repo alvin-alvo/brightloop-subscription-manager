@@ -17,7 +17,7 @@ func testRouter(authRequired bool) *gin.Engine {
 		AuthRequired:   authRequired,
 		DefaultRole:    "admin",
 		AllowedOrigins: []string{"*"},
-	}, handler.New(nil, nil, nil, "USD"))
+	}, handler.New(nil, nil, nil, nil, nil, "USD"))
 }
 
 func TestHealthRoutesAndAliases(t *testing.T) {

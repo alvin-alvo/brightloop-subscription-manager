@@ -45,17 +45,47 @@ type BillingService interface {
 	Run(ctx context.Context, asOf time.Time, dryRun bool, actor domain.Actor) (*domain.BillingRunResult, error)
 }
 
+// CatalogService is the admin catalogue and AR/customer portal surface.
+type CatalogService interface {
+	ListProducts(ctx context.Context, actor domain.Actor) ([]domain.Product, error)
+	CreateProduct(ctx context.Context, actor domain.Actor, input domain.CreateProductInput) (*domain.Product, error)
+	UpdateProduct(ctx context.Context, actor domain.Actor, id string, input domain.UpdateProductInput) (*domain.Product, error)
+	DeleteProduct(ctx context.Context, actor domain.Actor, id string) error
+	ListDiscounts(ctx context.Context, actor domain.Actor, activeOnly bool) ([]domain.Discount, error)
+	CreateDiscount(ctx context.Context, actor domain.Actor, discount *domain.Discount) (*domain.Discount, error)
+	ToggleDiscount(ctx context.Context, actor domain.Actor, id string, active bool) (*domain.Discount, error)
+	OverdueInvoices(ctx context.Context, actor domain.Actor, overdueOnly bool, limit int) ([]domain.OverdueInvoice, error)
+	CustomerInvoices(ctx context.Context, actor domain.Actor, customerID string) ([]domain.CustomerInvoice, error)
+	CustomerOverview(ctx context.Context, actor domain.Actor, customerID string) (domain.CustomerOverview, error)
+	PayInvoice(ctx context.Context, actor domain.Actor, invoiceID, method string) (*domain.CustomerInvoice, error)
+}
+
+// QuoteService is the quotations, templates and workspace surface.
+type QuoteService interface {
+	ListQuotes(ctx context.Context, actor domain.Actor) ([]domain.Quote, error)
+	GetQuote(ctx context.Context, actor domain.Actor, id string) (*domain.Quote, error)
+	CreateQuote(ctx context.Context, actor domain.Actor, quote *domain.Quote) (*domain.Quote, error)
+	UpdateQuoteStatus(ctx context.Context, actor domain.Actor, id, status string) (*domain.Quote, error)
+	DeleteQuote(ctx context.Context, actor domain.Actor, id string) error
+	ListTemplates(ctx context.Context, actor domain.Actor) ([]domain.QuoteTemplate, error)
+	GetTemplate(ctx context.Context, actor domain.Actor, id string) (*domain.QuoteTemplate, error)
+	CreateTemplate(ctx context.Context, actor domain.Actor, template *domain.QuoteTemplate) (*domain.QuoteTemplate, error)
+	Workspace(ctx context.Context, actor domain.Actor) (domain.Workspace, error)
+}
+
 // Handlers bundles the HTTP controllers.
 type Handlers struct {
 	Subscriptions SubscriptionService
 	DashboardSvc  DashboardService
 	Billing       BillingService
+	Catalog       CatalogService
+	Quotes        QuoteService
 	Currency      string
 	Now           func() time.Time
 }
 
 // New creates the controller bundle.
-func New(subscriptions SubscriptionService, dashboard DashboardService, billing BillingService, currency string) *Handlers {
+func New(subscriptions SubscriptionService, dashboard DashboardService, billing BillingService, catalog CatalogService, quotes QuoteService, currency string) *Handlers {
 	if currency == "" {
 		currency = "USD"
 	}
@@ -63,6 +93,8 @@ func New(subscriptions SubscriptionService, dashboard DashboardService, billing 
 		Subscriptions: subscriptions,
 		DashboardSvc:  dashboard,
 		Billing:       billing,
+		Catalog:       catalog,
+		Quotes:        quotes,
 		Currency:      currency,
 		Now:           time.Now,
 	}

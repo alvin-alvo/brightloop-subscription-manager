@@ -6,10 +6,9 @@ import { useToast } from '../../context/ToastContext';
 import { DashboardSkeleton } from '../../components/layout/DashboardSkeleton';
 import { StatusBadge } from '../../components/StatusBadge';
 import {
-  fetchCustomerInvoices,
-  payCustomerInvoice,
+  subscriptionsService,
   formatDisplayDate,
-} from '../../services/mockCustomerData';
+} from '../../services/subscriptionsService';
 import type { Invoice } from '../../types';
 
 interface CustomerInvoicesPageProps {
@@ -30,13 +29,12 @@ export const CustomerInvoicesPage: React.FC<CustomerInvoicesPageProps> = ({
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['customerInvoices', effectiveCustomerId],
-    queryFn: () => fetchCustomerInvoices(effectiveCustomerId),
+    queryFn: () => subscriptionsService.getCustomerInvoices(),
     staleTime: 1000 * 60 * 2,
   });
 
   const payMutation = useMutation({
-    mutationFn: (invoiceId: string) =>
-      payCustomerInvoice(invoiceId, effectiveCustomerId),
+    mutationFn: (invoiceId: string) => subscriptionsService.payInvoice(invoiceId),
     onMutate: (invoiceId) => {
       setPayingInvoiceId(invoiceId);
     },

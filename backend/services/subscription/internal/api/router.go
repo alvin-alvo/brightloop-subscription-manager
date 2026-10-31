@@ -48,6 +48,31 @@ func registerRoutes(router *gin.Engine, prefix string, cfg config.Config, handle
 	group.GET("/billing/runs", middleware.RequireStaff(), handlers.BillingRuns)
 	group.POST("/billing/run", middleware.RequireStaff(), handlers.RunBilling)
 
+	// Admin catalogue & AR / customer portal.
+	group.GET("/products", middleware.RequireStaff(), handlers.ListProducts)
+	group.POST("/products", middleware.RequireStaff(), handlers.CreateProduct)
+	group.PUT("/products/:id", middleware.RequireStaff(), handlers.UpdateProduct)
+	group.DELETE("/products/:id", middleware.RequireStaff(), handlers.DeleteProduct)
+	group.GET("/discounts", middleware.RequireStaff(), handlers.ListDiscounts)
+	group.POST("/discounts", middleware.RequireStaff(), handlers.CreateDiscount)
+	group.PATCH("/discounts/:id", middleware.RequireStaff(), handlers.ToggleDiscount)
+	group.GET("/invoices", middleware.RequireStaff(), handlers.OverdueInvoices)
+	group.GET("/invoices/customer", handlers.CustomerInvoices)
+	group.POST("/invoices/:id/pay", handlers.PayInvoice)
+	group.GET("/customers/me/overview", handlers.CustomerOverview)
+	group.GET("/customers/:id/overview", handlers.CustomerOverview)
+
+	// Quotes & templates & staff workspace.
+	group.GET("/workspace", middleware.RequireStaff(), handlers.Workspace)
+	group.GET("/quotes", middleware.RequireStaff(), handlers.ListQuotes)
+	group.POST("/quotes", middleware.RequireStaff(), handlers.CreateQuote)
+	group.GET("/quotes/templates", middleware.RequireStaff(), handlers.ListTemplates)
+	group.POST("/quotes/templates", middleware.RequireStaff(), handlers.CreateTemplate)
+	group.GET("/quotes/templates/:id", middleware.RequireStaff(), handlers.GetTemplate)
+	group.PATCH("/quotes/:id/status", middleware.RequireStaff(), handlers.UpdateQuoteStatus)
+	group.GET("/quotes/:id", middleware.RequireStaff(), handlers.GetQuote)
+	group.DELETE("/quotes/:id", middleware.RequireStaff(), handlers.DeleteQuote)
+
 	group.GET("/:id", handlers.GetSubscription)
 	group.PUT("/:id", middleware.RequireStaff(), handlers.UpdateSubscription)
 	group.DELETE("/:id", middleware.RequireStaff(), handlers.CancelSubscription)
