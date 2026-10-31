@@ -199,7 +199,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSidebar }) => {
                   onClick={() => {
                     logout();
                     setIsDropdownOpen(false);
-                    navigate('/');
+                    navigate('/login');
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
                 >

@@ -10,7 +10,7 @@ interface AuthContextType {
   switchRole: (role: UserRole) => void;
 }
 
-const DEMO_USERS: Record<UserRole, User> = {
+export const DEMO_USERS: Record<UserRole, User> = {
   admin: {
     id: 'usr_admin_01',
     name: 'Alex Vance',
@@ -58,12 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Fallback
     }
-    // Default to Admin for testing and developer experience
-    return DEMO_USERS.admin;
+    return null;
   });
 
   const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem(STORAGE_KEY_TOKEN) || 'mock_jwt_token_demo';
+    return localStorage.getItem(STORAGE_KEY_TOKEN) || null;
   });
 
   useEffect(() => {
@@ -123,3 +122,4 @@ export function useAuthContext(): AuthContextType {
   return context;
 }
 
+export default AuthContext;
