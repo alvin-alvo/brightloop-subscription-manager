@@ -1,101 +1,131 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository. Read this file before making changes.
+Guidance and strict constraints for AI coding agents working in this repository. Read this file before making changes.
 
-## Project
+---
 
-**brightloop-subscription-manager** — a subscription management platform for Brightloop Software. It covers accounts and roles, products and plans, quotations, subscriptions, recurring invoices, taxes, discounts, payments and revenue reporting. The source requirements are in `Subscription_Management_System.pdf` (not committed).
+## 1. Project Overview
 
-## Stack
+**brightloop-subscription-manager** is a B2B SaaS subscription and revenue management platform for Brightloop Software. It covers accounts and RBAC, products and tiered plans, quotations, recurring subscriptions, invoices, discounts, payments, and financial reporting.
 
-- **Backend:** Go 1.23+, standard-library `net/http` routing (Go 1.22+ method patterns)
-- **Database:** PostgreSQL 16+, accessed with `database/sql` + `pgx/v5/stdlib`
-- **Auth:** JWT bearer tokens (`golang-jwt/jwt/v5`) and bcrypt password hashes
-- **Frontend:** not in scope for this repository yet
+---
 
-All application code lives in `backend/`. Do not add frontend code.
+## 2. Architecture & Tech Stack
 
-## Repository layout
+### Backend (`backend/`)
+- **Language & Runtime:** Go 1.23+, standard-library `net/http` routing (Go 1.22+ method patterns).
+- **Database:** PostgreSQL 16+, accessed via `database/sql` + `pgx/v5/stdlib`.
+- **Auth:** JWT bearer tokens (`golang-jwt/jwt/v5`) and bcrypt password hashes.
+- **Dependency Flow:** Strictly inward: `api` → `service` → `repository` → `domain`. `domain` must not import other internal packages.
 
-```
+### Frontend (`frontend/`)
+- **Language & Framework:** React, TypeScript, Vite.
+- **Styling & Design System:** Tailwind CSS exclusively adhering to the Stripe design guidelines in `frontend/DESIGN.md` (clean surfaces `#ffffff`/`#f6f9fc`, hairline borders `#e3e8ee`, electric indigo `#533afd`, high-contrast navy ink `#0d253d`, subtle shadows, tabular figures `tnum`, and `ss01` font features). No custom CSS files.
+- **State & Data Fetching:** TanStack Query hitting the local backend (`http://localhost:3000/api/...`). **No static JSON files for data fetching.** If a backend endpoint is not yet available, mock the API layer using simulated async delays (`setTimeout`), structured identically to real API responses.
+- **Typing:** Strict TypeScript without `any`. Standard SaaS data contracts defined for `User`, `Product`, `Plan`, `Subscription`, and `Invoice`.
+- **Modularity & Performance:** Micro-components (`StatCard`, `StatusBadge`, `DataTable`). Code-split route views wrapped in React `Suspense` with `DashboardSkeleton` to guarantee perceived loads under 2 seconds.
+
+---
+
+## 3. Business Logic, Validation & RBAC
+
+### Authentication & Passwords
+- Strict registration validation enforced via Zod (`frontend/src/utils/validations.ts`).
+- Passwords **must be > 8 characters** and contain at least one uppercase letter, one lowercase letter, and one special character.
+
+### Role-Based Access Control (RBAC)
+The platform isolates capabilities across three distinct roles:
+1. **`Admin`**: Full system control — financial dashboards, staff management, product/tier configuration, and system-wide discounts.
+2. **`Staff`**: Operational workflows — customer CRM, quotation proposals, active subscription lifecycle, and recurring billing runs.
+3. **`Customer`**: Self-service portal — viewing contracted subscriptions, entitlements, and downloading tax invoices.
+
+Protected routes in `react-router-dom` dynamically verify role permissions before rendering layout and views.
+
+---
+
+## 4. Repository Layout
+
+```text
 .
-├── AGENTS.md
-├── LICENSE                 # GNU GPL v3.0
-├── README.md
-└── backend/
-    ├── cmd/api/            # HTTP server entrypoint
-    ├── cmd/migrate/        # SQL migration runner
-    ├── internal/
-    │   ├── api/            # router, handlers, middleware, response helpers
-    │   ├── auth/           # JWT + bcrypt
-    │   ├── config/         # environment config
-    │   ├── database/       # PostgreSQL pool
-    │   ├── domain/         # entities, enums, sentinel errors
-    │   ├── repository/     # interfaces + postgres/ implementations
-    │   ├── service/        # business rules
-    │   └── validation/     # input validation
-    ├── migrations/         # numbered .up.sql / .down.sql files
-    ├── Dockerfile
-    ├── docker-compose.yml
-    ├── Makefile
-    └── go.mod
+├── AGENTS.md               # Unified instructions and constraints for AI agents
+├── LICENSE                 # GNU General Public License v3.0
+├── README.md               # Project documentation and quickstart
+├── backend/                # Go backend microservice
+│   ├── cmd/api/            # HTTP server entrypoint
+│   ├── cmd/migrate/        # SQL migration runner
+│   ├── internal/
+│   │   ├── api/            # Router, handlers, middleware, response helpers
+│   │   ├── auth/           # JWT and bcrypt helpers
+│   │   ├── config/         # Environment configuration
+│   │   ├── database/       # PostgreSQL connection pool
+│   │   ├── domain/         # Entities, enums, sentinel errors
+│   │   ├── repository/     # Repository interfaces + postgres/ implementations
+│   │   ├── service/        # Business logic rules
+│   │   └── validation/     # Input validation
+│   ├── migrations/         # Numbered .up.sql / .down.sql files
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   └── go.mod
+└── frontend/               # React + TypeScript + Vite frontend
+    ├── index.html          # Application entry HTML
+    ├── package.json        # Dependencies and scripts
+    ├── tailwind.config.js  # Stripe design system tokens
+    ├── tsconfig.json       # TypeScript configuration
+    ├── vite.config.ts      # Vite bundler config (uses import.meta.dirname)
+    ├── DESIGN.md           # Visual design specifications
+    └── src/
+        ├── components/     # Layout, micro-components, auth guards
+        ├── context/        # Auth and Toast notification providers
+        ├── hooks/          # React hooks (useAuth, etc.)
+        ├── pages/          # Admin, Staff, and Customer view pages
+        ├── routes/         # Dynamic TypeScript routing definitions
+        ├── services/       # Local API client
+        ├── types/          # Domain TypeScript interfaces
+        └── utils/          # Zod validation schemas
 ```
 
-Dependencies point inward: `api` → `service` → `repository` → `domain`. `domain` must not import other internal packages.
+---
 
-## Commands
+## 5. Development Commands
 
-Run from `backend/`:
-
-| Task           | Command                |
-| -------------- | ---------------------- |
-| Run API        | `go run ./cmd/api`     |
+### Backend (`backend/`)
+| Task | Command |
+|---|---|
+| Run API | `go run ./cmd/api` |
 | Run migrations | `go run ./cmd/migrate` |
-| Build          | `go build ./...`       |
-| Test           | `go test ./...`        |
-| Format         | `gofmt -w .`           |
-| Vet            | `go vet ./...`         |
-| Tidy modules   | `go mod tidy`          |
-| Docker         | `docker compose up --build` |
+| Build | `go build ./...` |
+| Test | `go test ./...` |
+| Format & Vet | `gofmt -w . && go vet ./...` |
+| Docker Compose | `docker compose up --build` |
 
-Configuration is read from environment variables; see `backend/.env.example`. `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters are required for the API.
+### Frontend (`frontend/`)
+| Task | Command |
+|---|---|
+| Install | `npm install` |
+| Dev server | `npm run dev` |
+| Type check | `npx tsc -b` |
+| Production build | `npm run build` |
+| Preview build | `npm run preview` |
 
-## Conventions
+---
 
-- **Money:** store integer minor units (cents) in `*Cents` fields and `BIGINT` columns. Never use floats for money.
-- **Percentages:** store basis points in `*BasisPoints` fields (2000 = 20.00%).
-- **Dates:** `DATE` for billing dates, `TIMESTAMPTZ` for audit timestamps.
-- **Errors:** repositories return sentinel errors from `internal/domain` (`ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrForbidden`, `ErrValidation`); `response.Error` maps them to HTTP status codes.
-- **SQL:** only in `internal/repository/postgres`. Services depend on interfaces.
-- **Validation:** business validation belongs in `internal/service` or `internal/validation`, not handlers.
-- **Handlers:** decode with `response.DecodeJSON`, write with `response.JSON`, and return `response.Error` on failure.
-- **Migrations:** additive, numbered (`0002_...up.sql` / `.down.sql`). Never edit an applied migration.
-- **Tests:** place `*_test.go` next to the code under test.
+## 6. Coding Conventions
 
-## Adding a module
+- **Money:** Store integer minor units (cents) in `*Cents` fields / `BIGINT` columns. Never use floating-point types for currency.
+- **Percentages:** Store basis points in `*BasisPoints` fields (e.g., `2000` = 20.00%).
+- **Dates & Times:** Use `DATE` for billing dates and `TIMESTAMPTZ` for audit timestamps.
+- **Backend Errors:** Repositories return domain sentinel errors (`ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrForbidden`, `ErrValidation`); `response.Error` maps them to standard HTTP status codes.
+- **Database Access:** SQL queries live exclusively in `internal/repository/postgres`. Handlers and services must not write SQL.
+- **Self-Contained Architecture:** Do not hallucinate external third-party payment gateways (like external Stripe APIs). The system is fully self-contained using the local backend.
 
-Use the auth slice as the reference implementation:
+---
 
-1. Add entities/enums in `internal/domain`.
-2. Add a repository interface in `internal/repository` and a PostgreSQL implementation in `internal/repository/postgres`.
-3. Add business rules in `internal/service`.
-4. Add handlers in `internal/api/handler` and register routes in `internal/api/router.go`.
-5. Add a numbered migration in `migrations/`.
-6. Add tests.
+## 7. Strict Prohibitions ("Do Not")
 
-## Workflow
-
-1. Read `README.md`, `backend/README.md` and this file first.
-2. Check `git status` before editing to avoid overwriting uncommitted work.
-3. Make minimal, focused changes that match existing patterns.
-4. Run `gofmt`, `go vet ./...` and `go test ./...` before finishing.
-5. Update documentation when adding routes, commands or architectural decisions.
-
-## Do not
-
-- Commit `.env` files, secrets, generated binaries or dependency caches.
-- Put SQL in handlers or services.
-- Use floating-point types for money.
-- Rewrite git history or force-push shared branches.
-- Add frontend code or non-Go application code.
-- Modify `LICENSE` unless explicitly asked.
+- Do not commit `.env` files, secrets, generated binaries, build folders (`dist/`), or dependency caches (`node_modules/`).
+- Do not use floating-point types for financial calculations.
+- Do not write SQL inside handlers or business services.
+- Do not use static JSON files for data fetching — use TanStack Query with real or simulated local API endpoints.
+- Do not use TypeScript `any`.
+- Do not rewrite git history or force-push shared branches.
+- Do not modify `LICENSE` unless explicitly requested.

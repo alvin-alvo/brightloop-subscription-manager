@@ -10,6 +10,7 @@ import {
   Receipt,
   CreditCard,
   FileText,
+  LayoutDashboard,
   type LucideIcon,
 } from 'lucide-react';
 import type { UserRole } from '../types';
@@ -25,6 +26,7 @@ const QuotationsPage = lazy(() => import('../pages/staff/QuotationsPage'));
 const SubscriptionsPage = lazy(() => import('../pages/staff/SubscriptionsPage'));
 const BillingOperationsPage = lazy(() => import('../pages/staff/BillingOperationsPage'));
 
+const CustomerDashboardPage = lazy(() => import('../pages/customer/CustomerDashboardPage'));
 const CustomerSubscriptionsPage = lazy(() => import('../pages/customer/CustomerSubscriptionsPage'));
 const CustomerInvoicesPage = lazy(() => import('../pages/customer/CustomerInvoicesPage'));
 
@@ -40,19 +42,19 @@ export interface AppRouteConfig {
 
 // Dynamic routing array in TypeScript (no static JSON)
 export const APP_ROUTES: AppRouteConfig[] = [
-  // --- ADMIN ROUTES ---
+  // --- ADMIN ROUTES (Admin Hub Control Center) ---
   {
-    id: 'admin_dashboard',
-    path: '/admin/dashboard',
-    label: 'Finance Dashboard',
+    id: 'admin_finance',
+    path: '/admin/finance',
+    label: 'Finance Hub',
     icon: TrendingUp,
     allowedRoles: ['admin'],
     section: 'Administration',
     element: FinanceDashboardPage,
   },
   {
-    id: 'admin_products',
-    path: '/admin/products',
+    id: 'admin_catalog',
+    path: '/admin/catalog',
     label: 'Products & Plans',
     icon: Layers,
     allowedRoles: ['admin'],
@@ -71,7 +73,7 @@ export const APP_ROUTES: AppRouteConfig[] = [
   {
     id: 'admin_staff',
     path: '/admin/staff',
-    label: 'Staff',
+    label: 'Staff Management',
     icon: ShieldCheck,
     allowedRoles: ['admin'],
     section: 'Administration',
@@ -118,8 +120,17 @@ export const APP_ROUTES: AppRouteConfig[] = [
 
   // --- CUSTOMER PORTAL ROUTES ---
   {
+    id: 'customer_dashboard',
+    path: '/customer/dashboard',
+    label: 'Portal Overview',
+    icon: LayoutDashboard,
+    allowedRoles: ['customer'],
+    section: 'Customer Portal',
+    element: CustomerDashboardPage,
+  },
+  {
     id: 'customer_subscriptions',
-    path: '/portal/subscriptions',
+    path: '/customer/subscriptions',
     label: 'My Subscriptions',
     icon: CreditCard,
     allowedRoles: ['customer'],
@@ -128,8 +139,8 @@ export const APP_ROUTES: AppRouteConfig[] = [
   },
   {
     id: 'customer_invoices',
-    path: '/portal/invoices',
-    label: 'Invoices',
+    path: '/customer/invoices',
+    label: 'Invoices & Receipts',
     icon: FileText,
     allowedRoles: ['customer'],
     section: 'Customer Portal',
@@ -141,13 +152,12 @@ export const APP_ROUTES: AppRouteConfig[] = [
 export function getDefaultRouteForRole(role: UserRole): string {
   switch (role) {
     case 'admin':
-      return '/admin/dashboard';
+      return '/admin/finance';
     case 'staff':
       return '/staff/customers';
     case 'customer':
-      return '/portal/subscriptions';
+      return '/customer/dashboard';
     default:
-      return '/portal/subscriptions';
+      return '/customer/dashboard';
   }
 }
-

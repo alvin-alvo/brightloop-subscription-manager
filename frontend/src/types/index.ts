@@ -44,6 +44,7 @@ export interface Plan {
 
 export type SubscriptionStatus =
   | 'active'
+  | 'closed'
   | 'trialing'
   | 'past_due'
   | 'canceled'
@@ -52,24 +53,30 @@ export type SubscriptionStatus =
 
 export interface Subscription {
   id: string;
+  subscriptionNumber: string;
   customerId: string;
   customerName?: string;
   customerEmail?: string;
   planId: string;
+  planName: string;
   plan?: Plan;
   status: SubscriptionStatus;
+  startDate: string;
+  expiryDate: string;
   currentPeriodStart: string;
   currentPeriodEnd: string;
+  paymentTerms: string;
   cancelAtPeriodEnd: boolean;
   quantity: number;
   unitPrice: number;
   totalAmount: number;
   currency: string;
+  features?: string[];
   createdAt: string;
   updatedAt: string;
 }
 
-export type InvoiceStatus = 'draft' | 'open' | 'paid' | 'uncollectible' | 'void';
+export type InvoiceStatus = 'draft' | 'open' | 'confirmed' | 'paid' | 'uncollectible' | 'void';
 
 export interface InvoiceLineItem {
   id: string;
@@ -87,14 +94,33 @@ export interface Invoice {
   customerEmail?: string;
   subscriptionId?: string;
   status: InvoiceStatus;
+  date: string;
+  dueDate: string;
+  subtotalAmount: number;
+  taxAmount: number;
+  discountAmount: number;
+  totalAmount: number;
   amountDue: number;
   amountPaid: number;
   currency: string;
-  dueDate: string;
   paidAt?: string;
+  paymentMethod?: string;
   lineItems: InvoiceLineItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CustomerOverviewMetrics {
+  activeSubscriptionsCount: number;
+  totalMonthlyValue: number;
+  nextPaymentDue: {
+    amount: number;
+    date: string;
+    subscriptionNumber: string;
+    planName: string;
+  } | null;
+  totalOutstandingAmount: number;
+  outstandingInvoicesCount: number;
 }
 
 export interface ApiResponse<T> {
