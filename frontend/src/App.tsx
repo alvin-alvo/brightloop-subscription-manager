@@ -39,6 +39,10 @@ export const App: React.FC = () => {
             {/* Central /dashboard route mapping */}
             <Route path="/dashboard" element={<DashboardPage />} />
 
+            {/* Admin compatibility redirects */}
+            <Route path="/admin/dashboard" element={<Navigate to="/admin/finance" replace />} />
+            <Route path="/admin/products" element={<Navigate to="/admin/catalog" replace />} />
+
             {/* Portal compatibility redirects */}
             <Route path="/portal/dashboard" element={<Navigate to="/customer/dashboard" replace />} />
             <Route path="/portal/subscriptions" element={<Navigate to="/customer/subscriptions" replace />} />
