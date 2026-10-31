@@ -1,63 +1,62 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/subscription/internal/api"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/subscription/internal/api/handler"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/subscription/internal/config"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/subscription/internal/database"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/subscription/internal/repository/postgres"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/subscription/internal/service"
 )
 
-// Subscription service draft.
-//
-// Responsibilities (to implement):
-//   - Subscription CRUD
-//   - Billing cycles
-//   - Renewals and reminders
-//   - Analytics and reports
 func main() {
-	port := env("PORT", "8083")
+	cfg := config.Load()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	router := gin.Default()
-	router.GET("/health", health("subscription"))
-
-	api := router.Group("/api/v1/subscriptions")
-	{
-		api.GET("", stub("list subscriptions"))
-		api.POST("", stub("create subscription"))
-		api.GET("/analytics", stub("analytics"))
-		api.GET("/reports", stub("reports"))
-		api.GET("/:id", stub("get subscription"))
-		api.PUT("/:id", stub("update subscription"))
-		api.DELETE("/:id", stub("cancel subscription"))
-		api.GET("/:id/billing", stub("billing cycles"))
-		api.POST("/:id/renew", stub("renew subscription"))
-	}
-
-	log.Printf("subscription service listening on :%s", port)
-	if err := router.Run(":" + port); err != nil {
+	db, err := database.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
 		log.Fatalf("subscription service: %v", err)
 	}
-}
+	defer db.Close()
 
-func env(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	store := postgres.New(db)
+	subscriptions := service.NewSubscriptionService(store, store, store)
+	dashboard := service.NewDashboardService(store, store, store)
+	billing := service.NewBillingService(store, store)
+
+	handlers := handler.New(subscriptions, dashboard, billing, cfg.ReportingCurrency)
+	router := api.NewRouter(cfg, handlers)
+
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
-	return fallback
-}
 
-func health(service string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": service})
-	}
-}
+	go func() {
+		log.Printf("subscription service listening on :%s", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("subscription service: %v", err)
+		}
+	}()
 
-func stub(feature string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"error":   "not implemented",
-			"feature": feature,
-		})
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("subscription service shutdown: %v", err)
 	}
 }
