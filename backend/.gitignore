@@ -1,0 +1,14 @@
+# Build output
+bin/
+*.exe
+*.test
+*.out
+
+# Local environment
+.env
+.env.local
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
