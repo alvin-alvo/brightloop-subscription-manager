@@ -1,4 +1,4 @@
-.PHONY: up down logs tidy build test
+.PHONY: up down logs tidy build test db-reset db-shell
 
 up:
 	docker compose up --build
@@ -8,6 +8,13 @@ down:
 
 logs:
 	docker compose logs -f
+
+db-reset:
+	docker compose down -v
+	docker compose up -d postgres
+
+db-shell:
+	docker compose exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
 tidy:
 	cd services/auth && go mod tidy

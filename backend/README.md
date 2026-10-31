@@ -31,6 +31,9 @@ the single public entry point.
 | Subscription         | `services/subscription` | 8083          | `/api/v1/subscriptions` |
 | Notification         | `services/notification` | 8084          | `/api/v1/notifications` |
 
+All services share the PostgreSQL 16 instance exposed on `postgres:5432`; the
+schema is defined in `db/schema.sql`.
+
 ## Gateway responsibilities
 
 - **Routing** by path prefix to the correct service.
@@ -49,6 +52,8 @@ the single public entry point.
 
 ```
 backend/
+├── db/
+│   └── schema.sql           # PostgreSQL schema, auto-loaded on first start
 ├── gateway/
 │   └── haproxy.cfg          # routing, rate limit, health checks
 ├── services/
@@ -93,9 +98,55 @@ curl -H "Authorization: Bearer test" http://localhost:8080/api/v1/users/me
 # Visit http://localhost:8404/stats in a browser
 ```
 
-Only the gateway ports are published. Services are reachable on the compose
-network at `auth:8081`, `user:8082`, `subscription:8083` and
+Only the gateway and PostgreSQL ports are published. Services are reachable on
+the compose network at `auth:8081`, `user:8082`, `subscription:8083` and
 `notification:8084`.
+
+## Database
+
+The stack runs `postgres:16-alpine` with a named `postgres-data` volume.
+`db/schema.sql` is mounted into `/docker-entrypoint-initdb.d/`, so PostgreSQL
+executes it automatically the first time the volume is created. The credentials
+below are development defaults; change them before deploying anywhere shared.
+
+```bash
+# Connect with psql from the host
+psql "postgres://brightloop:brightloop@localhost:5432/brightloop"
+
+# Or through the container
+docker compose exec postgres psql -U brightloop -d brightloop
+```
+
+Credentials and the connection string come from `.env` (see `.env.example`):
+
+| Variable            | Default                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| `POSTGRES_DB`       | `brightloop`                                                         |
+| `POSTGRES_USER`     | `brightloop`                                                         |
+| `POSTGRES_PASSWORD` | `brightloop`                                                         |
+| `POSTGRES_PORT`     | `5432`                                                               |
+| `DATABASE_URL`      | `postgres://brightloop:brightloop@postgres:5432/brightloop?sslmode=disable` |
+
+Services receive `DATABASE_URL` from compose and wait for the database
+healthcheck before starting.
+
+The schema covers users and auth sessions, customers, products, plans, tax
+rates, discounts, quotations, subscriptions, invoices, payments, notifications
+and an audit log. Money is stored as `BIGINT` minor units, percentages as
+basis points and billing dates as `DATE`.
+
+### Reset the database
+
+Init scripts only run on an empty data directory. To re-apply the schema from
+scratch:
+
+```bash
+docker compose down -v
+docker compose up -d postgres
+
+# or
+make db-reset
+```
 
 ## Run a service locally
 
@@ -171,7 +222,7 @@ All service endpoints return `501 Not Implemented` with the feature name.
 
 1. Implement auth: bcrypt hashes, JWT issuing/validation, refresh/revocation,
    password reset tokens and RBAC claims.
-2. Give each service its own database (or schema) and migrations.
+2. Add per-service migrations on top of the shared `db/schema.sql`.
 3. Replace the draft gateway auth filter with real JWT validation.
 4. Add service-to-service calls (subscription → notification, user → auth).
 5. Add request validation, OpenAPI specs and tests per service.

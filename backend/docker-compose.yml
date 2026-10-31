@@ -1,6 +1,26 @@
 name: brightloop-backend
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: brightloop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-brightloop}
+      POSTGRES_USER: ${POSTGRES_USER:-brightloop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brightloop}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
   gateway:
     image: haproxy:2.9-alpine
     container_name: brightloop-gateway
@@ -22,6 +42,10 @@ services:
     environment:
       PORT: "8081"
       GIN_MODE: release
+      DATABASE_URL: "${DATABASE_URL:-postgres://brightloop:brightloop@postgres:5432/brightloop?sslmode=disable}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "8081"
 
@@ -32,6 +56,10 @@ services:
     environment:
       PORT: "8082"
       GIN_MODE: release
+      DATABASE_URL: "${DATABASE_URL:-postgres://brightloop:brightloop@postgres:5432/brightloop?sslmode=disable}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "8082"
 
@@ -42,6 +70,10 @@ services:
     environment:
       PORT: "8083"
       GIN_MODE: release
+      DATABASE_URL: "${DATABASE_URL:-postgres://brightloop:brightloop@postgres:5432/brightloop?sslmode=disable}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "8083"
 
@@ -52,5 +84,12 @@ services:
     environment:
       PORT: "8084"
       GIN_MODE: release
+      DATABASE_URL: "${DATABASE_URL:-postgres://brightloop:brightloop@postgres:5432/brightloop?sslmode=disable}"
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "8084"
+
+volumes:
+  postgres-data:
