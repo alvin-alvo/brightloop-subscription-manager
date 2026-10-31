@@ -4,6 +4,10 @@ bin/
 *.test
 *.out
 
+# Locally built service binaries
+services/*/main
+services/*/service
+
 # Local environment
 .env
 .env.local

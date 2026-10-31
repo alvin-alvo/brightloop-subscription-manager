@@ -1,6 +1,0 @@
-.git
-.env
-.env.local
-bin/
-*.exe
-*.md

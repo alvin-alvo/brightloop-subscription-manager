@@ -1,33 +1,56 @@
+name: brightloop-backend
+
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: brightloop
+  gateway:
+    image: haproxy:2.9-alpine
+    container_name: brightloop-gateway
     ports:
-      - "5432:5432"
+      - "${GATEWAY_PORT:-8080}:8080"
+      - "${GATEWAY_STATS_PORT:-8404}:8404"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d brightloop"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  api:
-    build: .
-    environment:
-      APP_ENV: development
-      HTTP_PORT: "8080"
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/brightloop?sslmode=disable
-      JWT_SECRET: local-development-secret-change-me-32-chars
-      JWT_TTL: 24h
-    ports:
-      - "8080:8080"
+      - ./gateway/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      - auth
+      - user
+      - subscription
+      - notification
 
-volumes:
-  postgres_data:
+  auth:
+    build:
+      context: ./services/auth
+    container_name: brightloop-auth
+    environment:
+      PORT: "8081"
+      GIN_MODE: release
+    expose:
+      - "8081"
+
+  user:
+    build:
+      context: ./services/user
+    container_name: brightloop-user
+    environment:
+      PORT: "8082"
+      GIN_MODE: release
+    expose:
+      - "8082"
+
+  subscription:
+    build:
+      context: ./services/subscription
+    container_name: brightloop-subscription
+    environment:
+      PORT: "8083"
+      GIN_MODE: release
+    expose:
+      - "8083"
+
+  notification:
+    build:
+      context: ./services/notification
+    container_name: brightloop-notification
+    environment:
+      PORT: "8084"
+      GIN_MODE: release
+    expose:
+      - "8084"

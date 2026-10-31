@@ -1,138 +1,177 @@
-# Brightloop Subscription Manager — Backend
+# Brightloop Backend — Microservices (Draft)
 
-Go HTTP API for the subscription management platform described in
-`Subscription_Management_System.pdf`. It covers accounts and roles, products,
-plans, quotations, subscriptions, invoices, taxes, discounts, payments and
-reporting.
+Draft microservice backend for the Brightloop subscription management platform.
+Each service is an independent Go module with a basic Gin server. HAProxy is
+the single public entry point.
+
+> This is a scaffold. Every business endpoint returns `501 Not Implemented` so
+> the routing and deployment can be exercised before the logic is written.
+
+## Architecture
+
+```
+                          +------------------------+
+                          |        HAProxy         |
+                          |   API Gateway :8080    |
+                          |   Stats       :8404    |
+                          +-----------+------------+
+                                      |
+          +---------------+-----------+-----------+---------------+
+          |               |                       |               |
+     +----v----+     +----v----+             +----v-----+    +----v-----+
+     |  auth   |     |  user   |             |subscript.|    |notification|
+     |  :8081  |     |  :8082  |             |  :8083   |    |  :8084    |
+     +---------+     +---------+             +----------+    +-----------+
+```
+
+| Service              | Folder                  | Internal port | Public prefix           |
+| -------------------- | ----------------------- | ------------- | ----------------------- |
+| Auth                 | `services/auth`         | 8081          | `/api/v1/auth`          |
+| User                 | `services/user`         | 8082          | `/api/v1/users`         |
+| Subscription         | `services/subscription` | 8083          | `/api/v1/subscriptions` |
+| Notification         | `services/notification` | 8084          | `/api/v1/notifications` |
+
+## Gateway responsibilities
+
+- **Routing** by path prefix to the correct service.
+- **Load balancing** with round-robin (one replica per service for now).
+- **Health checks** against each service's `/health`.
+- **Rate limiting**: 100 requests per 10 seconds per source IP.
+- **Authentication filter (draft)**: protected routes require an
+  `Authorization: Bearer ...` header. This only checks that the header exists;
+  replace it with real JWT validation (forward-auth/SPOE or an auth-service
+  call) before production.
+- **Request/response handling**: HTTP keep-alive, forwarding headers and
+  structured request logs.
+- **Stats dashboard**: `http://localhost:8404/stats`.
 
 ## Layout
 
 ```
 backend/
-├── cmd/
-│   ├── api/                 # HTTP server entrypoint
-│   └── migrate/             # SQL migration runner
-├── internal/
-│   ├── api/                 # HTTP layer
-│   │   ├── handler/         # request/response handlers
-│   │   ├── middleware/      # auth, logging, panic recovery
-│   │   ├── response/        # JSON helpers and error mapping
-│   │   └── router.go        # route registration
-│   ├── auth/                # JWT issuing/parsing and bcrypt helpers
-│   ├── config/              # environment configuration
-│   ├── database/            # PostgreSQL connection pool
-│   ├── domain/              # entities, enums and sentinel errors
-│   ├── repository/          # persistence interfaces
-│   │   └── postgres/        # PostgreSQL implementations
-│   ├── service/             # business rules
-│   └── validation/          # reusable input validation
-├── migrations/              # numbered up/down SQL files
-├── Dockerfile
+├── gateway/
+│   └── haproxy.cfg          # routing, rate limit, health checks
+├── services/
+│   ├── auth/                # register/login/logout, JWT, password reset, RBAC
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   └── Dockerfile
+│   ├── user/                # profile, preferences, account settings
+│   ├── subscription/        # subscription CRUD, billing, renewals, reports
+│   └── notification/        # email, in-app, push, templates
+├── monolith/                # archived previous single-service draft
 ├── docker-compose.yml
 ├── Makefile
-└── go.mod
+└── README.md
 ```
 
-Dependencies point inward: `api` → `service` → `repository` → `domain`.
-`domain` must not import any other internal package.
+`monolith/` is kept only as a reference for the domain model and auth code. It
+is **not** part of the compose stack and can be deleted once it is no longer
+useful.
 
-## Running locally
-
-Requirements: Go 1.23+, PostgreSQL 16+ (or Docker).
+## Run with Docker
 
 ```bash
 cd backend
-cp .env.example .env      # then edit values
-```
-
-Load the environment variables into your shell (or use your tool of choice),
-then:
-
-```bash
-go mod tidy
-go run ./cmd/migrate      # apply migrations
-go run ./cmd/api          # start the API on :8080
-```
-
-With Docker:
-
-```bash
+cp .env.example .env
 docker compose up --build
 ```
 
-The API container does not run migrations automatically; run
-`go run ./cmd/migrate` against the exposed PostgreSQL port.
+Then:
 
-## Commands
+```bash
+# Gateway health
+curl http://localhost:8080/health
 
-| Task            | Command                 |
-| --------------- | ----------------------- |
-| Run API         | `go run ./cmd/api`      |
-| Run migrations  | `go run ./cmd/migrate`  |
-| Build           | `go build ./...`        |
-| Test            | `go test ./...`         |
-| Format          | `gofmt -w .`            |
-| Vet             | `go vet ./...`          |
-| Tidy modules    | `go mod tidy`           |
+# Public auth stub
+curl -X POST http://localhost:8080/api/v1/auth/login
 
-## Endpoints
+# Protected stub (draft filter only checks for the header)
+curl -H "Authorization: Bearer test" http://localhost:8080/api/v1/users/me
 
-| Method | Path                    | Access        |
-| ------ | ----------------------- | ------------- |
-| GET    | `/health/live`          | public        |
-| GET    | `/health/ready`         | public        |
-| POST   | `/api/v1/auth/register` | public        |
-| POST   | `/api/v1/auth/login`    | public        |
-| GET    | `/api/v1/auth/me`       | authenticated |
-| GET    | `/api/v1/admin/ping`    | admin only    |
-
-`POST /api/v1/auth/register` accepts:
-
-```json
-{
-  "email": "owner@example.com",
-  "password": "Str0ng!Pass",
-  "full_name": "Owner Name"
-}
+# HAProxy stats
+# Visit http://localhost:8404/stats in a browser
 ```
 
-`POST /api/v1/auth/login` accepts `email` and `password`. Both return a
-`token` to send as `Authorization: Bearer <token>`.
+Only the gateway ports are published. Services are reachable on the compose
+network at `auth:8081`, `user:8082`, `subscription:8083` and
+`notification:8084`.
 
-## Conventions
+## Run a service locally
 
-- **Money is stored in minor units.** Every `*Cents` field is an integer
-  amount in cents. Never use floats for money.
-- **Percentages are basis points.** A 20% tax rate is `2000`; a 7.5% discount
-  is `750`.
-- **Dates.** Billing dates use `DATE`; audit timestamps use `TIMESTAMPTZ`.
-- **Errors.** Repositories return the sentinel errors in `internal/domain`
-  (`ErrNotFound`, `ErrConflict`, ...); `response.Error` maps them to HTTP.
-- **Validation.** Handlers decode and delegate; business validation belongs in
-  `internal/service` or `internal/validation`.
-- **No SQL outside the repository layer.** Services depend on interfaces, not
-  `*sql.DB`.
+Each service is its own Go module:
 
-## Adding a module
+```bash
+cd services/auth
+go mod tidy
+go run .
+```
 
-Use the auth slice as the reference:
+The port defaults to the service port; override it with `PORT`:
 
-1. Add or extend entities in `internal/domain`.
-2. Add a repository interface in `internal/repository` and a PostgreSQL
-   implementation in `internal/repository/postgres`.
-3. Put business rules in `internal/service`.
-4. Add HTTP handlers in `internal/api/handler` and register routes in
-   `internal/api/router.go`.
-5. Add a numbered migration under `migrations/`.
-6. Add tests next to the code (`*_test.go`).
+```bash
+# macOS / Linux
+PORT=8091 go run .
 
-## Suggested next modules
+# PowerShell
+$env:PORT = "8091"; go run .
+```
 
-- Products and plans (admin CRUD, variants, availability rules)
-- Subscriptions and quotations (state machine: draft → quotation → confirmed
-  → active → closed)
-- Billing run (idempotent invoice generation per subscription and period)
-- Payments and outstanding/overdue invoice queries
-- Taxes and discounts (automatic application and usage limits)
-- Reporting (active subscriptions, revenue, outstanding balance, overdue
-  invoices) with pagination and indexed filters
+## Endpoints (draft)
+
+All service endpoints return `501 Not Implemented` with the feature name.
+
+### Auth (`/api/v1/auth`)
+
+| Method | Path             | Responsibility              |
+| ------ | ---------------- | --------------------------- |
+| POST   | `/register`      | Create an account           |
+| POST   | `/login`         | Authenticate and issue JWT  |
+| POST   | `/logout`        | Revoke the session          |
+| POST   | `/password-reset`| Send a reset link           |
+| GET    | `/validate`      | Validate a token            |
+
+### User (`/api/v1/users`)
+
+| Method | Path               | Responsibility          |
+| ------ | ------------------ | ----------------------- |
+| GET    | `/me`              | Get profile             |
+| PUT    | `/me`              | Update profile          |
+| GET    | `/me/preferences`  | Get preferences         |
+| PUT    | `/me/preferences`  | Update preferences      |
+| DELETE | `/me`              | Delete account          |
+| GET    | `""`               | List users (admin)      |
+| GET    | `/:id`             | Get user (admin)        |
+
+### Subscription (`/api/v1/subscriptions`)
+
+| Method | Path             | Responsibility       |
+| ------ | ---------------- | -------------------- |
+| GET    | `""`             | List subscriptions   |
+| POST   | ``               | Create subscription  |
+| GET    | `/analytics`     | Analytics            |
+| GET    | `/reports`       | Reports              |
+| GET    | `/:id`           | Get subscription     |
+| PUT    | `/:id`           | Update subscription  |
+| DELETE | `/:id`           | Cancel subscription  |
+| GET    | `/:id/billing`   | Billing cycles       |
+| POST   | `/:id/renew`     | Renew subscription   |
+
+### Notification (`/api/v1/notifications`)
+
+| Method | Path          | Responsibility               |
+| ------ | ------------- | ---------------------------- |
+| GET    | `""`          | List in-app notifications    |
+| POST   | `/email`      | Send email notification      |
+| POST   | `/push`       | Send push notification       |
+| GET    | `/templates`  | List templates               |
+| POST   | `/templates`  | Create template              |
+
+## Next steps
+
+1. Implement auth: bcrypt hashes, JWT issuing/validation, refresh/revocation,
+   password reset tokens and RBAC claims.
+2. Give each service its own database (or schema) and migrations.
+3. Replace the draft gateway auth filter with real JWT validation.
+4. Add service-to-service calls (subscription → notification, user → auth).
+5. Add request validation, OpenAPI specs and tests per service.
