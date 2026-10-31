@@ -1,24 +1,7 @@
-import { useState, useCallback } from 'react';
-import type { User } from '../types';
+import { useAuthContext } from '../context/AuthContext';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem('brightloop_token')
-  );
-
-  const logout = useCallback(() => {
-    localStorage.removeItem('brightloop_token');
-    setUser(null);
-    setToken(null);
-  }, []);
-
-  return {
-    user,
-    token,
-    isAuthenticated: Boolean(token),
-    setUser,
-    setToken,
-    logout,
-  };
+  return useAuthContext();
 }
+
+export default useAuth;

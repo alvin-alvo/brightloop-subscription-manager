@@ -4,6 +4,15 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900;
+    @apply bg-stripe-canvas-soft text-stripe-ink antialiased font-sans;
+    font-feature-settings: "ss01" on;
+    letter-spacing: -0.011em;
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-feature-settings: "tnum" on;
+    font-variant-numeric: tabular-nums;
   }
 }
