@@ -123,6 +123,21 @@ export interface CustomerOverviewMetrics {
   outstandingInvoicesCount: number;
 }
 
+export interface AppNotification {
+  id: string;
+  type: 'in_app' | 'email' | 'push';
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+  displayTime: string;
+}
+
+export interface NotificationList {
+  items: AppNotification[];
+  unreadCount: number;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;

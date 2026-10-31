@@ -119,4 +119,21 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+-- Demo in-app notifications for the admin demo account (Bell dropdown).
+INSERT INTO notifications (id, user_id, channel, title, body, read_at, created_at)
+VALUES
+    ('00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000101',
+     'in_app', 'Recurring billing run completed',
+     'Nightly billing processed 3 invoices and collected $1,920.00.',
+     NULL, now() - interval '2 hours'),
+    ('00000000-0000-0000-0000-000000000602', '00000000-0000-0000-0000-000000000101',
+     'in_app', 'Subscription renewal imminent',
+     'Enterprise Annual renews in 15 days for Acme Enterprises Inc.',
+     NULL, now() - interval '5 hours'),
+    ('00000000-0000-0000-0000-000000000603', '00000000-0000-0000-0000-000000000101',
+     'in_app', 'Welcome to Brightloop',
+     'Your Brightloop workspace is ready. Explore the finance dashboard.',
+     now() - interval '1 day', now() - interval '1 day')
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;

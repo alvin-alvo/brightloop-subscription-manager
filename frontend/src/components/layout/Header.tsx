@@ -4,6 +4,9 @@ import {
   Menu,
   ChevronRight,
   Bell,
+  BellRing,
+  CheckCheck,
+  Zap,
   LogOut,
   Shield,
   UserCheck,
@@ -14,6 +17,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
 import { APP_ROUTES, getDefaultRouteForRole } from '../../routes/routes.config';
 import type { UserRole } from '../../types';
+import {
+  notificationsService,
+  type AppNotification,
+} from '../../services/notificationsService';
 
 interface HeaderProps {
   onOpenSidebar: () => void;
@@ -28,19 +35,65 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSidebar }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifLoading, setNotifLoading] = useState(true);
+
+  const refreshNotifications = async () => {
+    try {
+      const result = await notificationsService.getNotifications(10);
+      setNotifications(result.items);
+      setUnreadCount(result.unreadCount);
+    } catch {
+      // The service falls back to local data; keep current state otherwise.
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
+      const node = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(node)) {
         setIsDropdownOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(node)) {
+        setIsNotifOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleMarkAllRead = async () => {
+    await notificationsService.markAllRead();
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  const handleMarkRead = async (id: string) => {
+    await notificationsService.markRead(id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    setUnreadCount((count) => Math.max(0, count - 1));
+  };
+
+  const handleBellToggle = async () => {
+    setIsNotifOpen((prev) => {
+      const open = !prev;
+      if (open && notifications.length === 0) refreshNotifications();
+      return open;
+    });
+  };
 
   // Compute active breadcrumb item from route configuration
   const currentRoute = APP_ROUTES.find((r) => r.path === location.pathname);
@@ -87,13 +140,96 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSidebar }) => {
 
       {/* Right Section: Real-time trigger & User Menu */}
       <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Notifications dropdown */}
+        <div className="relative" ref={notifRef}>
+          <button
+            onClick={handleBellToggle}
+            className="relative p-2 text-slate-500 hover:text-stripe-ink rounded-full hover:bg-slate-100 transition-colors"
+            aria-label="Notifications"
+            title="Notifications"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {isNotifOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-white border border-stripe-hairline rounded-xl shadow-stripe-md overflow-hidden z-50 text-xs">
+              <div className="px-4 py-3 border-b border-stripe-hairline flex items-center justify-between">
+                <p className="font-medium text-stripe-ink text-sm flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-stripe-primary" />
+                  Notifications
+                  {unreadCount > 0 && (
+                    <span className="text-[10px] font-semibold text-stripe-primary bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                      {unreadCount} new
+                    </span>
+                  )}
+                </p>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="inline-flex items-center gap-1 text-stripe-primary hover:text-stripe-primary-deep font-medium"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-80 overflow-y-auto divide-y divide-stripe-hairline">
+                {notifLoading && (
+                  <div className="px-4 py-6 text-center text-stripe-ink-mute">
+                    Loading notifications...
+                  </div>
+                )}
+                {!notifLoading && notifications.length === 0 && (
+                  <div className="px-4 py-8 text-center text-stripe-ink-mute">
+                    You're all caught up.
+                  </div>
+                )}
+                {notifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    onClick={() => handleMarkRead(notification.id)}
+                    className={`w-full text-left px-4 py-3 transition-colors ${
+                      notification.read
+                        ? 'hover:bg-slate-50'
+                        : 'bg-indigo-50/50 hover:bg-indigo-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      {!notification.read && (
+                        <span className="w-2 h-2 mt-1.5 shrink-0 rounded-full bg-stripe-primary" />
+                      )}
+                      <span className="flex-1 min-w-0">
+                        <span className="block font-medium text-stripe-ink pr-6">
+                          {notification.title}
+                        </span>
+                        <span className="block text-stripe-ink-mute mt-0.5 leading-snug">
+                          {notification.body}
+                        </span>
+                        <span className="block text-[11px] text-stripe-ink-secondary mt-1">
+                          {notification.displayTime}
+                        </span>
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Real-time simulation event button */}
         <button
           onClick={simulateRealtimeEvent}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stripe-primary bg-indigo-50/80 hover:bg-indigo-100/80 border border-indigo-100 rounded-full transition-colors"
           title="Simulate incoming WebSocket webhook"
         >
-          <Bell className="w-3.5 h-3.5 animate-bounce" />
+          <Zap className="w-3.5 h-3.5 animate-bounce" />
           <span className="hidden sm:inline">Simulate Event</span>
         </button>
 

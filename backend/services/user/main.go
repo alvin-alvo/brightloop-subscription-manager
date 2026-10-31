@@ -1,60 +1,60 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/user/internal/api"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/user/internal/api/handler"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/user/internal/config"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/user/internal/database"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/user/internal/repository/postgres"
+	"github.com/alvin-alvo/brightloop-subscription-manager/backend/services/user/internal/service"
 )
 
-// User service draft.
-//
-// Responsibilities (to implement):
-//   - Profile management
-//   - Preferences
-//   - Account settings
 func main() {
-	port := env("PORT", "8082")
+	cfg := config.Load()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	router := gin.Default()
-	router.GET("/health", health("user"))
-
-	api := router.Group("/api/v1/users")
-	{
-		api.GET("/me", stub("get profile"))
-		api.PUT("/me", stub("update profile"))
-		api.GET("/me/preferences", stub("get preferences"))
-		api.PUT("/me/preferences", stub("update preferences"))
-		api.DELETE("/me", stub("delete account"))
-		api.GET("", stub("list users"))
-		api.GET("/:id", stub("get user"))
-	}
-
-	log.Printf("user service listening on :%s", port)
-	if err := router.Run(":" + port); err != nil {
+	db, err := database.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
 		log.Fatalf("user service: %v", err)
 	}
-}
+	defer db.Close()
 
-func env(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	store := postgres.New(db)
+	userService := service.NewUserService(store)
+
+	handlers := handler.New(userService)
+	router := api.NewRouter(cfg, handlers)
+
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
-	return fallback
-}
 
-func health(service string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": service})
-	}
-}
+	go func() {
+		log.Printf("user service listening on :%s", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("user service: %v", err)
+		}
+	}()
 
-func stub(feature string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{
-			"error":   "not implemented",
-			"feature": feature,
-		})
+	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("user service shutdown: %v", err)
 	}
 }

@@ -17,7 +17,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 
 CREATE TYPE user_role AS ENUM ('admin', 'staff', 'customer');
-CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended');
+CREATE TYPE user_status AS ENUM ('active', 'invited', 'inactive', 'suspended');
 CREATE TYPE customer_status AS ENUM ('active', 'inactive', 'suspended');
 CREATE TYPE billing_interval AS ENUM ('monthly', 'quarterly', 'yearly');
 CREATE TYPE subscription_status AS ENUM (
@@ -55,8 +55,10 @@ CREATE TABLE users (
     role              user_role NOT NULL DEFAULT 'customer',
     status            user_status NOT NULL DEFAULT 'active',
     company_name      TEXT,
+    department        TEXT NOT NULL DEFAULT '',
     phone             TEXT,
     avatar_url        TEXT,
+    preferences       JSONB NOT NULL DEFAULT '{}'::jsonb,
     email_verified_at TIMESTAMPTZ,
     last_login_at     TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),

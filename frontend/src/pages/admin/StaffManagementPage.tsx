@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UserPlus,
   Shield,
@@ -10,9 +10,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
-  mockAdminService,
+  staffService,
   type AdminStaff,
-} from '../../services/mockAdminData';
+} from '../../services/staffService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useToast } from '../../context/ToastContext';
 import { Button } from '../../components/common/Button';
@@ -22,10 +22,28 @@ import { isValidEmail } from '../../utils/validations';
 export const StaffManagementPage: React.FC = () => {
   const { addToast } = useToast();
 
-  const [staffList, setStaffList] = useState<AdminStaff[]>(() =>
-    mockAdminService.getStaffMembers()
-  );
+  const [staffList, setStaffList] = useState<AdminStaff[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    staffService
+      .getStaffMembers()
+      .then((members) => {
+        if (active) setStaffList(members);
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          setLoadError(
+            err instanceof Error ? err.message : 'Unable to load staff members.'
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Invite Form State
   const [formData, setFormData] = useState({
@@ -58,48 +76,69 @@ export const StaffManagementPage: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    // Simulate API dispatch
-    await new Promise((res) => setTimeout(res, 600));
 
-    const newMember = mockAdminService.addStaffMember({
-      name: formData.name.trim(),
-      email: formData.email.trim().toLowerCase(),
-      role: formData.role,
-      department: formData.department.trim() || 'General Operations',
-      status: 'invited',
-    });
+    try {
+      const newMember = await staffService.addStaffMember({
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        role: formData.role,
+        department: formData.department.trim() || 'General Operations',
+      });
 
-    setStaffList(mockAdminService.getStaffMembers());
-    setIsSubmitting(false);
-    setShowModal(false);
+      const members = await staffService.getStaffMembers();
+      setStaffList(members);
+      setShowModal(false);
 
-    setFormData({
-      name: '',
-      email: '',
-      role: 'staff',
-      department: 'Revenue & Operations',
-    });
+      setFormData({
+        name: '',
+        email: '',
+        role: 'staff',
+        department: 'Revenue & Operations',
+      });
 
-    addToast(
-      'Staff Invitation Dispatched',
-      `Invitation sent to ${newMember.email} with ${newMember.role.toUpperCase()} privileges.`,
-      'success'
-    );
+      addToast(
+        'Staff Invitation Dispatched',
+        `Invitation sent to ${newMember.email} with ${newMember.role.toUpperCase()} privileges.`,
+        'success'
+      );
+    } catch (err: unknown) {
+      addToast(
+        'Invitation Failed',
+        err instanceof Error ? err.message : 'Unable to send the invitation.',
+        'error'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleToggleRole = (id: string, currentRole: 'admin' | 'staff') => {
+  const handleToggleRole = async (id: string, currentRole: 'admin' | 'staff') => {
     const nextRole = currentRole === 'admin' ? 'staff' : 'admin';
-    const updated = mockAdminService.updateStaffRole(id, nextRole);
-    setStaffList(mockAdminService.getStaffMembers());
-    addToast(
-      'Role Updated',
-      `${updated.name} permissions modified to ${nextRole.toUpperCase()}.`,
-      'info'
-    );
+    try {
+      const updated = await staffService.updateStaffRole(id, nextRole);
+      const members = await staffService.getStaffMembers();
+      setStaffList(members);
+      addToast(
+        'Role Updated',
+        `${updated.name} permissions modified to ${nextRole.toUpperCase()}.`,
+        'info'
+      );
+    } catch (err: unknown) {
+      addToast(
+        'Role Update Failed',
+        err instanceof Error ? err.message : 'Unable to update the role.',
+        'error'
+      );
+    }
   };
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {loadError && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-stripe-ruby">
+          {loadError}
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

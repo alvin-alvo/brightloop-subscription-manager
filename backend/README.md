@@ -4,13 +4,21 @@ Microservice backend for the Brightloop subscription management platform. Each
 service is an independent Go module with a Gin server. HAProxy is the single
 public entry point.
 
-> The **subscription** and **auth** services are fully implemented.
-> Subscription covers the lifecycle, recurring billing, invoices, renewals,
-> transactions, dashboard analytics and revenue reports. Auth covers register,
-> login, logout, token validation and password reset with bcrypt hashing and
-> signed JWTs. The frontend login/signup pages call the auth service (with a
-> local fallback when the backend is not running). User and notification are
-> still scaffolds whose business endpoints return `501 Not Implemented`.
+> The **subscription**, **auth**, **user** and **notification** services are
+> fully implemented.
+> - **Auth** — register, login, logout, token validation and password reset
+>   with bcrypt hashing and signed JWTs.
+> - **User** — profile & preferences, account deletion, and staff management
+>   (list, invite, role/status updates).
+> - **Notification** — in-app notification list/badge, mark read / read-all,
+>   send (in-app/email/push) and templates.
+> - **Subscription** — lifecycle, recurring billing, invoices, renewals,
+>   transactions, dashboard analytics and revenue reports.
+>
+> The frontend staff-management page and the header notification bell call the
+> user and notification services (with local fallbacks when the backend is not
+> running). Only the notification service's email/push delivery integrations
+> and per-service migrations remain future work.
 
 ## Architecture
 
@@ -312,6 +320,64 @@ Subscriptions`, `Net Retention Rate` and `Total Customers`. `recentTransactions`
 also carries the structured fields (`invoiceId`, `customerId`, `planId`,
 `paymentStatus`, …) used by other views.
 
+## User service
+
+The user service manages profiles, preferences and staff administration with
+the same layered layout as the other services
+(`api → service → repository → domain`).
+
+### Endpoints
+
+| Method | Path                           | Access   | Responsibility                                |
+| ------ | ------------------------------ | -------- | --------------------------------------------- |
+| `GET`  | `/api/v1/users/me`             | self     | Current user profile (`User` shape)           |
+| `PUT`  | `/api/v1/users/me`             | self     | Update name, company, phone, avatar           |
+| `DELETE` | `/api/v1/users/me`           | self     | Deactivate the account                        |
+| `GET`  | `/api/v1/users/me/preferences` | self     | Read preferences (JSON object)                |
+| `PUT`  | `/api/v1/users/me/preferences` | self     | Merge preferences                            |
+| `GET`  | `/api/v1/users`                | staff    | List internal members (`AdminStaff` shape)    |
+| `POST` | `/api/v1/users`                | staff    | Invite a staff/admin member                   |
+| `GET`  | `/api/v1/users/:id`            | staff    | Get one member                                |
+| `PUT`  | `/api/v1/users/:id`            | staff    | Update role / status / department / name      |
+
+The staff list returns the `AdminStaff` shape the frontend settings page
+renders (`id`, `name`, `email`, `role`, `department`, `status`, `lastActive`,
+`createdAt`). `lastActive` is computed server-side as a relative string
+("Just now", "2h ago", …) and invited users report "Just invited".
+
+Inviting a member requires `name`, `email`, `role` (`admin`/`staff`) and an
+optional `department`; the service generates the account with status `invited`
+and a temporary password (the invitee uses password reset to set their own).
+
+```
+POST /api/v1/users
+{ "name": "Taylor Evans", "email": "taylor@brightloop.io", "role": "staff", "department": "Ops" }
+```
+
+## Notification service
+
+The notification service powers the in-app bell, sends and templates.
+
+### Endpoints
+
+| Method | Path                                     | Access   | Responsibility                  |
+| ------ | ---------------------------------------- | -------- | ------------------------------- |
+| `GET`  | `/api/v1/notifications`                  | self     | List my notifications + unread count (`?limit`, `?unreadOnly`) |
+| `GET`  | `/api/v1/notifications/unread-count`     | self     | Unread badge count              |
+| `POST` | `/api/v1/notifications/:id/read`         | self     | Mark one notification read      |
+| `POST` | `/api/v1/notifications/read-all`         | self     | Mark all read                   |
+| `POST` | `/api/v1/notifications`                  | staff    | Create an in-app notification   |
+| `POST` | `/api/v1/notifications/email`            | staff    | Record an email notification    |
+| `POST` | `/api/v1/notifications/push`             | staff    | Record a push notification      |
+| `GET`  | `/api/v1/notifications/templates`        | staff    | List templates                  |
+| `POST` | `/api/v1/notifications/templates`        | staff    | Create a template               |
+
+The bell list returns `{ "items": [...], "unreadCount": n }`; each item is
+`{ id, type, title, body, read, createdAt, displayTime }` where `displayTime`
+is a relative string. In development both the list and the target user default
+to the seeded admin account via `AUTH_DEFAULT_USER_ID` when no bearer identity
+is present, so the bell is populated out of the box.
+
 ## Run with Docker
 
 ```bash
@@ -459,10 +525,14 @@ go build ./...
 
 ## Endpoints
 
-The subscription and auth services are implemented; see
-[Subscription service](#subscription-service) and [Auth service](#auth-service)
-for their full route tables and payloads. User and notification remain drafts
-and return `501 Not Implemented`.
+All four services — subscription, auth, user and notification — are
+implemented; see their dedicated sections for the authoritative route tables
+and payloads:
+
+- [Auth service](#auth-service)
+- [Subscription service](#subscription-service)
+- [User service](#user-service)
+- [Notification service](#notification-service)
 
 ### Auth (`/api/v1/auth`)
 
@@ -472,15 +542,9 @@ Implemented. Routes are `POST /register`, `POST /login`, `POST /logout`,
 
 ### User (`/api/v1/users`)
 
-| Method | Path               | Responsibility          |
-| ------ | ------------------ | ----------------------- |
-| GET    | `/me`              | Get profile             |
-| PUT    | `/me`              | Update profile          |
-| GET    | `/me/preferences`  | Get preferences         |
-| PUT    | `/me/preferences`  | Update preferences      |
-| DELETE | `/me`              | Delete account          |
-| GET    | `""`               | List users (admin)      |
-| GET    | `/:id`             | Get user (admin)        |
+Implemented. Profile and preferences (`/me`, `/me/preferences`, `DELETE /me`)
+and staff administration (list, invite, `/:id`); see
+[User service](#user-service) for the authoritative table.
 
 ### Subscription (`/api/v1/subscriptions`)
 
@@ -489,20 +553,16 @@ authoritative reference; `/api/subscriptions/...` serves the same routes.
 
 ### Notification (`/api/v1/notifications`)
 
-| Method | Path          | Responsibility               |
-| ------ | ------------- | ---------------------------- |
-| GET    | `""`          | List in-app notifications    |
-| POST   | `/email`      | Send email notification      |
-| POST   | `/push`       | Send push notification       |
-| GET    | `/templates`  | List templates               |
-| POST   | `/templates`  | Create template              |
+Implemented. List/badge, mark read / read-all, send (in-app/email/push) and
+templates; see [Notification service](#notification-service) for the
+authoritative table.
 
 ## Next steps
 
-1. Implement the user and notification services.
+1. Lay on real email/push delivery for the notification service.
 2. Replace the draft gateway bearer-presence filter with real JWT validation
    (forward-auth/SPOE or a call to the auth `/validate` endpoint).
 3. Add service-to-service calls (subscription → notification, user → auth).
 4. Add per-service migrations on top of the shared `db/schema.sql` and
-   PostgreSQL-backed integration tests for the subscription and auth repositories.
+   PostgreSQL-backed integration tests for all four service repositories.
 5. Publish OpenAPI specs per service.
