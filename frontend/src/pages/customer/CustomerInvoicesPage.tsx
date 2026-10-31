@@ -10,6 +10,7 @@ import {
   formatDisplayDate,
 } from '../../services/subscriptionsService';
 import type { Invoice } from '../../types';
+import { downloadInvoicePdfFile } from '../../utils/invoicePdfGenerator';
 
 interface CustomerInvoicesPageProps {
   customerId?: string;
@@ -71,9 +72,10 @@ export const CustomerInvoicesPage: React.FC<CustomerInvoicesPageProps> = ({
   );
 
   const handleDownloadPdf = (invoice: Invoice) => {
+    downloadInvoicePdfFile(invoice, user?.companyName || user?.name, user?.email);
     addToast(
       'Tax Invoice Downloaded',
-      `PDF receipt for ${invoice.invoiceNumber} ($${invoice.totalAmount.toFixed(2)}) downloaded.`,
+      `PDF receipt for ${invoice.invoiceNumber} ($${invoice.totalAmount.toFixed(2)}) downloaded to your device.`,
       'success'
     );
   };

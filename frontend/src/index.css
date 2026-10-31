@@ -4,10 +4,35 @@
 
 @layer base {
   body {
-    @apply bg-stripe-canvas-soft text-stripe-ink antialiased font-sans;
+    background-color: #f6f9fc;
+    color: #0d253d;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "ss01" on;
     letter-spacing: -0.011em;
   }
+
+  html.dark body {
+    background-color: #0b1320;
+    color: #f8fafc;
+  }
+}
+
+/* Fallback color transition active strictly during theme toggle */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *:before,
+html.theme-transition *:after {
+  transition: background-color 0.3s ease-out, color 0.3s ease-out, border-color 0.3s ease-out !important;
+  transition-delay: 0s !important;
+}
+
+/* Native View Transitions API premium crossfade */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer utilities {

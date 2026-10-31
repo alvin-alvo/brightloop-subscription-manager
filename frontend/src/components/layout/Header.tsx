@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
+import { ThemeToggle } from '../ThemeToggle';
 import { APP_ROUTES, getDefaultRouteForRole } from '../../routes/routes.config';
 import type { UserRole } from '../../types';
 import {
@@ -113,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSidebar }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-stripe-hairline px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+    <header className="sticky top-0 z-30 h-16 bg-white/95 dark:bg-stripe-dark-surface/95 backdrop-blur-md border-b border-stripe-hairline dark:border-stripe-dark-border px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-colors duration-150">
       {/* Left Section: Mobile Menu + Breadcrumbs */}
       <div className="flex items-center gap-3">
         <button
@@ -138,8 +139,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSidebar }) => {
         </nav>
       </div>
 
-      {/* Right Section: Real-time trigger & User Menu */}
+      {/* Right Section: Theme Toggle, Real-time trigger & User Menu */}
       <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Animated Micro-interaction Theme Toggle */}
+        <ThemeToggle />
         {/* Notifications dropdown */}
         <div className="relative" ref={notifRef}>
           <button

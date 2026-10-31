@@ -8,7 +8,7 @@ export const DashboardLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-stripe-canvas-soft text-stripe-ink flex">
+    <div className="min-h-screen bg-stripe-canvas-soft dark:bg-stripe-dark-bg text-stripe-ink dark:text-slate-100 flex transition-colors duration-150">
       {/* Persistent / Responsive Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}

@@ -138,6 +138,19 @@ CREATE TABLE products (
 CREATE UNIQUE INDEX products_name_key ON products (lower(name));
 CREATE UNIQUE INDEX products_sku_key ON products (sku) WHERE sku IS NOT NULL;
 
+CREATE TABLE product_variants (
+    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id             UUID NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+    name                   TEXT NOT NULL,
+    brand                  TEXT NOT NULL DEFAULT '',
+    price_adjustment_cents BIGINT NOT NULL DEFAULT 0,
+    active                 BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX product_variants_product_idx ON product_variants (product_id);
+
 CREATE TABLE plans (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id        UUID NOT NULL REFERENCES products (id) ON DELETE RESTRICT,

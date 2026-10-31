@@ -37,6 +37,14 @@ func Auth(cfg config.Config) gin.HandlerFunc {
 
 		if role, ok := mockRole(token); ok {
 			principal.Role = role
+			if role == "customer" {
+				principal.UserID = "00000000-0000-0000-0000-000000000103"
+				principal.CustomerID = "00000000-0000-0000-0000-000000000021"
+			} else if role == "staff" {
+				principal.UserID = "00000000-0000-0000-0000-000000000102"
+			} else if role == "admin" {
+				principal.UserID = "00000000-0000-0000-0000-000000000101"
+			}
 			c.Set("principal", principal)
 			c.Next()
 			return

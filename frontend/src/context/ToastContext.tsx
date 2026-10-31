@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, Info, XCircle, X } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -82,6 +82,23 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const randomEvent = events[Math.floor(Math.random() * events.length)];
     addToast(randomEvent.title, randomEvent.message, randomEvent.type);
   }, [addToast]);
+
+  // Background simulation engine: actively generates mock payments,
+  // subscription state changes, and dunning updates without page refresh.
+  useEffect(() => {
+    const initialTimer = setTimeout(() => {
+      simulateRealtimeEvent();
+    }, 12000);
+
+    const recurringTimer = setInterval(() => {
+      simulateRealtimeEvent();
+    }, 28000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(recurringTimer);
+    };
+  }, [simulateRealtimeEvent]);
 
   return (
     <ToastContext.Provider

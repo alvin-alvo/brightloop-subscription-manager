@@ -39,6 +39,16 @@ VALUES (
     ARRAY['Recurring billing', 'Customer portal', 'Revenue reports']
 ) ON CONFLICT DO NOTHING;
 
+INSERT INTO product_variants (id, product_id, name, brand, price_adjustment_cents, active)
+VALUES (
+    '00000000-0000-0000-0000-000000000031',
+    '00000000-0000-0000-0000-000000000001',
+    'Enterprise Dedicated Addon',
+    'Brightloop Pro',
+    56000,
+    TRUE
+) ON CONFLICT DO NOTHING;
+
 INSERT INTO plans (id, product_id, name, description, billing_interval,
                    price_cents, currency, features, trial_period_days, active)
 VALUES
